@@ -1,26 +1,134 @@
 @import "tailwindcss";
 
+/* ---- Semantic tokens (light = cream + lime, dark = charcoal + neon lime) ---- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  color-scheme: light dark;
+  --bg: #f4f5ee;
+  --surface: #e9ece0;
+  --surface-2: #f9faf5;
+  --surface-strong: #1e2a1f;
+  --on-strong: #f4f5ee;
+  --accent: #d8f56b;
+  --accent-ink: #1b2a14;
+  --accent-soft: #eef8c8;
+  --ink: #1a1e19;
+  --muted: #6b7367;
+  --border: #d6dbcb;
+  --danger: #d9534f;
+  --success: #3f8f4a;
+  --warn: #e0a826;
+  --ring-1: #d8f56b;
+  --ring-2: #6fd3a1;
+  --ring-3: #f28c6a;
+  --shadow: 0 1px 2px rgb(20 30 15 / 0.06), 0 8px 24px -12px rgb(20 30 15 / 0.18);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #0e110f;
+    --surface: #181c19;
+    --surface-2: #1f2420;
+    --surface-strong: #22301f;
+    --on-strong: #f2f4ec;
+    --accent: #d8f56b;
+    --accent-ink: #141a0c;
+    --accent-soft: #2a3618;
+    --ink: #f2f4ec;
+    --muted: #9aa395;
+    --border: #2a302b;
+    --danger: #ff6b66;
+    --success: #6fd3a1;
+    --warn: #f0c050;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-strong: var(--surface-strong);
+  --color-on-strong: var(--on-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-simpler), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-card: 24px;
+  --radius-pill: 999px;
+  --shadow-card: var(--shadow);
 }
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+body {
+  min-height: 100dvh;
+  font-size: 16px;
+  line-height: 1.5;
+  font-feature-settings: "tnum";
+}
+
+/* Native dialog as bottom sheet */
+dialog.sheet {
+  margin: auto 0 0 0;
+  inset-inline: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 92dvh;
+  border: 0;
+  padding: 0;
+  background: var(--surface-2);
+  color: var(--ink);
+  border-radius: 24px 24px 0 0;
+  box-shadow: var(--shadow);
+}
+dialog.sheet::backdrop {
+  background: rgb(0 0 0 / 0.5);
+  backdrop-filter: blur(2px);
+}
+dialog.sheet[open] {
+  animation: sheet-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sheet-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Micro-animations: cards rise in with a small stagger (pure CSS, no JS lib). */
+.rise {
+  animation: rise 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+.rise:nth-child(2) { --i: 1; }
+.rise:nth-child(3) { --i: 2; }
+.rise:nth-child(4) { --i: 3; }
+.rise:nth-child(n + 5) { --i: 4; }
+@keyframes rise {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Hide number input spinners (we use our own steppers) */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+.safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem); }

@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Shiri Fit
 
-## Getting Started
+אפליקציית אימונים אישית (PWA, עברית/RTL) — תוכנית חודשית, תבניות אימון, ספריית תרגילים, תיעוד אימונים ו-recovery, קלוריות, דשבורד טבעות, סנכרון ל-Google Calendar ותזכורות Push.
 
-First, run the development server:
+Stack: Next.js 16 (App Router) · Tailwind v4 · Supabase (Auth, Postgres, pg_cron) · Vercel · web-push.
+
+## הפעלה מקומית
 
 ```bash
+npm i
+cp .env.example .env.local   # ולמלא את הערכים (ראי למטה)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## הקמה פעם אחת
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Supabase
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. פרויקט חדש ב-[supabase.com](https://supabase.com) בשם `shiri-fit` (region: eu-central / Frankfurt).
+2. SQL Editor → להריץ לפי הסדר:
+   - `supabase/migrations/20261023000000_init.sql` (טבלאות, RLS, trigger לפרופיל)
+   - `supabase/migrations/20261023000001_cron.sql` (תזכורות כל 5 דק׳)
+3. Project Settings → API: להעתיק `URL`, `anon key`, `service_role key` ל-`.env.local`.
+4. Authentication → URL Configuration:
+   - Site URL: כתובת ה-Vercel (למשל `https://shiri-fit.vercel.app`)
+   - Redirect URLs: `https://shiri-fit.vercel.app/auth/callback`, `http://localhost:3000/auth/callback`
 
-## Learn More
+### 2. Google OAuth (התחברות + יומן)
 
-To learn more about Next.js, take a look at the following resources:
+1. [Google Cloud Console](https://console.cloud.google.com) → פרויקט חדש → APIs & Services → להפעיל **Google Calendar API**.
+2. OAuth consent screen → External → **Publish to Production** (אחרת refresh tokens פגים אחרי 7 ימים). Scopes: `openid`, `email`, `profile`, `https://www.googleapis.com/auth/calendar.events`.
+3. Credentials → OAuth Client ID (Web). Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`.
+4. Supabase → Authentication → Providers → Google: להדביק Client ID + Secret.
+5. אותם Client ID/Secret גם ב-`.env.local` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) — משמשים לרענון טוקן היומן בצד השרת.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. משתני סביבה
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+ראי `.env.example`. בנוסף:
 
-## Deploy on Vercel
+```bash
+npx web-push generate-vapid-keys        # → NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
+openssl rand -hex 32                     # → CRON_SECRET
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`ALLOWED_EMAILS` — רק המיילים האלה יוכלו להיכנס (אחרים מנותקים מיד).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. סודות ל-pg_cron (אחרי הדפלוי הראשון)
+
+ב-SQL Editor:
+
+```sql
+select vault.create_secret('https://shiri-fit.vercel.app', 'app_url');
+select vault.create_secret('<CRON_SECRET>', 'cron_secret');
+```
+
+### 5. ספריית תרגילים
+
+```bash
+npx tsx --env-file=.env.local scripts/seed-exercises.ts
+```
+
+מזריע ~800 תרגילים מ-free-exercise-db (ציבורי, עם תמונות). אם `MUSCLEWIKI_API_KEY` תקף (דרוש TESTING tier ומעלה — BASIC מחזיר 403) יתווספו גם תרגילי MuscleWiki עם וידאו, וחיפוש בספרייה יוכל להשלים תרגילים חסרים לפי דרישה.
+
+### 6. Vercel
+
+```bash
+npx vercel link
+npx vercel env pull            # או להזין ידנית ב-Dashboard → Settings → Environment Variables
+npx vercel --prod
+```
+
+כל המשתנים מ-`.env.example` צריכים להיות מוגדרים ב-Production.
+
+### 7. התקנה על האייפון
+
+Safari → לפתוח את הכתובת → שיתוף → **הוספה למסך הבית**. Push notifications ב-iOS עובדות רק מהאפליקציה המותקנת — להפעיל אותן מתוך הפרופיל → תזכורות.
+
+## מבנה
+
+- `app/(app)/` — מסכים מאחורי התחברות: בית, תוכנית (`/plan`), אימונים (`/workouts`), התקדמות (`/progress`), אימון חי (`/session`), פרופיל.
+- `app/api/calendar` — upsert/delete אירועי Google Calendar. `app/api/reminders/tick` — נקרא מ-pg_cron, שולח Push.
+- `components/` — sheets (תיעוד, שיבוץ, recovery, תרגיל), ספרייה, UI בסיסי.
+- `lib/met.ts` — חישוב קלוריות (`MET × kg × hours`, ±20% לפי עצימות). בדיקה: `node --experimental-strip-types lib/met.test.ts`.
+- `proxy.ts` — רענון session, allowlist מיילים, הפניות.
+
+## אבטחה
+
+- RLS על כל הטבלאות (`user_id = auth.uid()`); `google_tokens` נגישה רק עם service role.
+- מפתחות MuscleWiki / Google / VAPID — בצד השרת בלבד. אם מפתח דלף, לסובב אותו.
