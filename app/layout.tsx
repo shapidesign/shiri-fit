@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description: "האימונים של שירי",
   applicationName: "Shiri Fit",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Shiri Fit" },
-  icons: { apple: "/icons/apple-touch-icon.png", icon: "/icons/icon-192.png" },
+  icons: { apple: "/icons/apple-touch-icon.png", icon: "/icons/icon.svg" },
 };
 
 export const viewport: Viewport = {
@@ -27,8 +27,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f5ee" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e110f" },
+    { media: "(prefers-color-scheme: light)", color: "#f5f3ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#171412" },
   ],
 };
 
