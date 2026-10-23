@@ -66,12 +66,21 @@ export async function quickWorkout(profile: Profile): Promise<TemplateWithExerci
   const timed = vibe !== "strength";
   const pool = await searchExercises({ categories: [...new Set(["bodyweight", ...profile.equipment])], limit: 300 });
   const seen = new Set<string>();
+  // Gender only orders muscles; anything missing for the user's equipment falls back to the random fill.
+  const order = profile.gender === "male"
+    ? ["chest", "lats", "shoulders", "quads", "triceps", "abdominals"]
+    : ["glutes", "hamstrings", "quads", "abdominals", "lats", "shoulders"];
   // ponytail: random shuffle + first-per-muscle; no balancing of push/pull or difficulty.
   const picked = pool
     .filter((e) => e.images.length)
     .sort(() => Math.random() - 0.5)
+    .sort((a, b) => rank(a) - rank(b))
     .filter((e) => e.muscles[0] && !seen.has(e.muscles[0]) && seen.add(e.muscles[0]))
     .slice(0, 6);
+  function rank(e: Exercise) {
+    const i = order.indexOf(e.muscles[0]);
+    return i < 0 ? order.length : i;
+  }
   return {
     id: "", user_id: profile.id, name: "אימון מהיר", vibe, intensity: "moderate", est_minutes: 60, notes: null, created_at: "",
     muscle_groups: picked.map((e) => e.muscles[0]),

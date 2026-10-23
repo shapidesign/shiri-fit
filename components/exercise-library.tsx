@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { useProfile } from "@/components/profile-provider";
-import { MUSCLES, equipmentLabel, muscleLabel } from "@/lib/labels";
+import { MUSCLES, equipmentLabel, g, muscleLabel } from "@/lib/labels";
 import { searchExercises } from "@/lib/db";
 import type { Exercise } from "@/lib/types";
 
@@ -64,7 +64,7 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
 
       {q.trim().length >= 2 && (
         <div className="flex items-center justify-between rounded-2xl bg-accent-soft px-4 py-2 text-sm">
-          <span className="flex items-center gap-1.5"><Sparkles className="h-4 w-4" aria-hidden /> לא מצאת? חפשי ב-MuscleWiki</span>
+          <span className="flex items-center gap-1.5"><Sparkles className="h-4 w-4" aria-hidden /> לא מצאת? {g(profile.gender, "חפשי", "חפש")} ב-MuscleWiki</span>
           {mwState === "unavailable" ? (
             <span className="text-xs text-muted">לא זמין כרגע</span>
           ) : (
@@ -80,7 +80,7 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
           {Array.from({ length: 6 }).map((_, i) => <li key={i} className="h-[72px] animate-pulse rounded-2xl bg-surface" />)}
         </ul>
       ) : items.length === 0 ? (
-        <p className="py-10 text-center text-muted">אין תרגילים שמתאימים לסינון. נסי להוריד את ״הציוד שלי״.</p>
+        <p className="py-10 text-center text-muted">אין תרגילים שמתאימים לסינון. {g(profile.gender, "נסי", "נסה")} להוריד את ״הציוד שלי״.</p>
       ) : (
         <ul className="space-y-2">
           {items.map((e) => (
@@ -100,7 +100,7 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
         </ul>
       )}
       {!myGear && !loading && <p className="text-center text-xs text-muted">מוצגים {items.length} תרגילים. אפשר לצמצם עם ״הציוד שלי״ או קבוצת שרירים.</p>}
-      {!profile.equipment.length && <p className="text-center text-xs text-muted">טיפ: עדכני ציוד בפרופיל כדי לסנן רק מה שיש לך.</p>}
+      {!profile.equipment.length && <p className="text-center text-xs text-muted">טיפ: {g(profile.gender, "עדכני", "עדכן")} ציוד בפרופיל כדי לסנן רק מה שיש לך.</p>}
     </div>
   );
 }

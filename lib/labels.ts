@@ -1,4 +1,7 @@
-import type { BodyState, Feeling, Intensity, Status, Vibe } from "./types";
+import type { BodyState, Feeling, Intensity, Profile, Status, Vibe } from "./types";
+
+/** Copy addressed to the user: feminine by default (null = not answered), masculine for men. */
+export const g = (gender: Profile["gender"], f: string, m: string) => (gender === "male" ? m : f);
 
 export const VIBES: { id: Vibe; label: string }[] = [
   { id: "strength", label: "כוח" },

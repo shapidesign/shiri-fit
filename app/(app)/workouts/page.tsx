@@ -9,12 +9,14 @@ import { PageHeader, Segmented } from "@/components/ui/page-header";
 import { ExerciseLibrary } from "@/components/exercise-library";
 import { ExerciseSheet } from "@/components/exercise-sheet";
 import { listTemplates, type TemplateWithExercises } from "@/lib/db";
-import { intensityLabel, muscleLabel, vibeLabel } from "@/lib/labels";
+import { useProfile } from "@/components/profile-provider";
+import { g, intensityLabel, muscleLabel, vibeLabel } from "@/lib/labels";
 import type { Exercise } from "@/lib/types";
 
 function WorkoutsInner() {
   const params = useSearchParams();
   const router = useRouter();
+  const { profile } = useProfile();
   const tab = (params.get("tab") as "templates" | "library") ?? "templates";
   const [templates, setTemplates] = useState<TemplateWithExercises[] | null>(null);
   const [detail, setDetail] = useState<Exercise | null>(null);
@@ -40,7 +42,7 @@ function WorkoutsInner() {
         ) : templates.length === 0 ? (
           <Card tone="accent" className="text-center">
             <p className="text-lg font-bold">עוד אין תבניות</p>
-            <p className="mt-1 text-sm text-muted">תבנית = אימון שחוזר על עצמו (למשל ״אימון A — כל הגוף״). בוני אחת ואז משבצים אותה בלוח.</p>
+            <p className="mt-1 text-sm text-muted">תבנית = אימון שחוזר על עצמו (למשל ״אימון A — כל הגוף״). {g(profile.gender, "בוני", "בנה")} אחת ואז משבצים אותה בלוח.</p>
             <Link href="/workouts/new" className="mt-4 inline-flex h-12 items-center rounded-2xl bg-accent px-6 font-semibold text-accent-ink">תבנית ראשונה</Link>
           </Card>
         ) : (

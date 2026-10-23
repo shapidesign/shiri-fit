@@ -11,7 +11,7 @@ import { RecoverySheet } from "@/components/recovery-sheet";
 import { useProfile } from "@/components/profile-provider";
 import { Mini } from "@/components/ui/field";
 import { db, exerciseKey, getTemplate, quickWorkout, setHistory, type TemplateWithExercises } from "@/lib/db";
-import { muscleLabel, vibeLabel } from "@/lib/labels";
+import { g, muscleLabel, vibeLabel } from "@/lib/labels";
 import { suggestWeight, type LoggedSet, type Suggestion } from "@/lib/progression";
 import type { Exercise, ExerciseDone, ScheduledWorkout, WorkoutLog } from "@/lib/types";
 
@@ -134,7 +134,7 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
       </div>
 
       {rows.length === 0 ? (
-        <p className="mt-6 rounded-[24px] bg-surface p-5 text-center text-muted">אין תרגילים בתבנית — פשוט תתאמני, ובסוף נתעד.</p>
+        <p className="mt-6 rounded-[24px] bg-surface p-5 text-center text-muted">אין תרגילים בתבנית — פשוט {g(profile.gender, "תתאמני", "תתאמן")}, ובסוף נתעד.</p>
       ) : (
         <ul className="mt-4 space-y-3">
           {rows.map((r) => {

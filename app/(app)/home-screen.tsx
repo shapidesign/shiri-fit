@@ -11,7 +11,7 @@ import { Rings } from "@/components/ui/ring";
 import { LogWorkoutSheet } from "@/components/log-workout-sheet";
 import { RecoverySheet } from "@/components/recovery-sheet";
 import { db, logsBetween } from "@/lib/db";
-import { vibeLabel } from "@/lib/labels";
+import { g, vibeLabel } from "@/lib/labels";
 import type { ScheduledWorkout, WorkoutLog } from "@/lib/types";
 
 async function fetchHome() {
@@ -56,7 +56,7 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
         <Eyebrow>{next ? (isToday(new Date(next.date)) ? "היום" : format(new Date(next.date), "EEEE, d בMMMM", { locale: he })) : "אין אימון מתוכנן"}</Eyebrow>
         <h2 className="mt-3 text-3xl font-black leading-tight">{next ? next.title : "האימון הבא שלך."}</h2>
         <p className="mt-1 text-sm opacity-80">
-          {next ? `${vibeLabel(next.vibe)} · ${next.time?.slice(0, 5) ?? ""} · ${next.duration_min} דק׳` : "שבצי משהו בלוח, או צאי לאימון חופשי עכשיו."}
+          {next ? `${vibeLabel(next.vibe)} · ${next.time?.slice(0, 5) ?? ""} · ${next.duration_min} דק׳` : g(profile.gender, "שבצי משהו בלוח, או צאי לאימון חופשי עכשיו.", "שבץ משהו בלוח, או צא לאימון חופשי עכשיו.")}
         </p>
         <div className="mt-5 flex gap-2">
           {next ? (

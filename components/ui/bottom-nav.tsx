@@ -7,7 +7,8 @@ import { CalendarDays, ChevronLeft, Dumbbell, House, NotebookPen, Plus, Sparkles
 import { LogWorkoutSheet } from "@/components/log-workout-sheet";
 import { Sheet } from "@/components/ui/sheet";
 import { listTemplates, type TemplateWithExercises } from "@/lib/db";
-import { vibeLabel } from "@/lib/labels";
+import { useProfile } from "@/components/profile-provider";
+import { g, vibeLabel } from "@/lib/labels";
 
 const TABS = [
   { href: "/", label: "בית", Icon: House },
@@ -19,6 +20,7 @@ const TABS = [
 export function BottomNav() {
   const path = usePathname();
   const router = useRouter();
+  const { profile } = useProfile();
   const [open, setOpen] = useState(false);
   const [logging, setLogging] = useState(false);
   const [templates, setTemplates] = useState<TemplateWithExercises[] | null>(null);
@@ -68,7 +70,7 @@ export function BottomNav() {
 
       <Sheet open={open} onClose={() => setOpen(false)} title="אימון חדש">
         <div className="space-y-2">
-          <Option Icon={Sparkles} title="סדרי לי אימון עכשיו" sub="6 תרגילים לפי הציוד והסגנון שלך" onClick={() => go("/session?quick=1")} accent />
+          <Option Icon={Sparkles} title={g(profile.gender, "סדרי לי אימון עכשיו", "סדר לי אימון עכשיו")} sub="6 תרגילים לפי הציוד והסגנון שלך" onClick={() => go("/session?quick=1")} accent />
           <Option Icon={Timer} title="אימון חופשי" sub="מתחילים שעון, מתעדים בסוף" onClick={() => go("/session")} />
           <Option Icon={NotebookPen} title="תיעוד אימון שכבר עשיתי" sub="סטודיו, ריצה, משהו ספונטני" onClick={() => { setOpen(false); setLogging(true); }} />
 

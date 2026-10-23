@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Stepper } from "@/components/ui/field";
 import { PushToggle } from "@/components/push-toggle";
 import { db } from "@/lib/db";
-import { EQUIPMENT, GOALS, VIBES } from "@/lib/labels";
+import { EQUIPMENT, GOALS, VIBES, g } from "@/lib/labels";
 
 export default function ProfilePage() {
   const { profile, setProfile } = useProfile();
@@ -55,7 +55,7 @@ export default function ProfilePage() {
           {profile.weekly_minutes_goal && <><dt className="text-muted">יעד דקות</dt><dd className="font-semibold">{profile.weekly_minutes_goal} דק׳</dd></>}
           <dt className="text-muted">ציוד</dt><dd className="font-semibold">{label(EQUIPMENT, profile.equipment)}</dd>
           <dt className="text-muted">מטרות</dt><dd className="font-semibold">{label(GOALS, profile.goals)}</dd>
-          <dt className="text-muted">אוהבת</dt><dd className="font-semibold">{label(VIBES, profile.vibes)}</dd>
+          <dt className="text-muted">{g(profile.gender, "אוהבת", "אוהב")}</dt><dd className="font-semibold">{label(VIBES, profile.vibes)}</dd>
         </dl>
       </Card>
 

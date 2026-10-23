@@ -11,6 +11,7 @@ export type Profile = {
   id: string;
   email: string | null;
   display_name: string | null;
+  gender: "female" | "male" | null;
   weight_kg: number | null;
   height_cm: number | null;
   birth_year: number | null;

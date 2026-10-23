@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, Stepper } from "@/components/ui/field";
-import { EQUIPMENT, GOALS, VIBES } from "@/lib/labels";
+import { EQUIPMENT, GOALS, VIBES, g } from "@/lib/labels";
 import { CalendarCheck } from "lucide-react";
 import { createClient, signInWithGoogle } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
@@ -23,6 +23,7 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
   const [error, setError] = useState<string | null>(null);
   const [p, setP] = useState({
     display_name: profile.display_name ?? "",
+    gender: profile.gender,
     weight_kg: profile.weight_kg ?? 60,
     height_cm: profile.height_cm ?? 165,
     birth_year: profile.birth_year ?? 1995,
@@ -34,10 +35,11 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
     weekly_kcal_goal: profile.weekly_kcal_goal,
   });
   const set = <K extends keyof typeof p>(k: K, v: (typeof p)[K]) => setP((s) => ({ ...s, [k]: v }));
+  const t = (f: string, m: string) => g(p.gender, f, m);
 
   const calendarStep = {
     title: "מחברים את היומן",
-    sub: "אימונים שתשבצי ייכנסו ליומן Google עם תזכורת, ואימונים ספונטניים יירשמו בו אחורה.",
+    sub: `אימונים ${t("שתשבצי", "שתשבץ")} ייכנסו ליומן Google עם תזכורת, ואימונים ספונטניים יירשמו בו אחורה.`,
     body: (
       <div className="space-y-4">
         {calendarConnected ? (
@@ -64,10 +66,15 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
   const steps = [
     ...(mode === "onboarding" ? [calendarStep] : []),
     {
-      title: "קצת עלייך",
+      title: t("קצת עלייך", "קצת עליך"),
       sub: "המשקל משמש רק לחישוב קלוריות. הכול נשאר אצלך.",
       body: (
         <div className="space-y-4">
+          <div role="group" aria-label="מגדר" className="grid grid-cols-2 gap-3">
+            {([["female", "אישה"], ["male", "גבר"]] as const).map(([id, label]) => (
+              <Chip key={id} selected={(p.gender ?? "female") === id} onClick={() => set("gender", id)} className="justify-center">{label}</Chip>
+            ))}
+          </div>
           <Field label="איך לקרוא לך?" name="display_name" value={p.display_name} onChange={(e) => set("display_name", e.target.value)} autoComplete="given-name" />
           <div className="grid grid-cols-2 gap-3">
             <Field label="משקל" name="weight_kg" type="number" inputMode="decimal" suffix="ק״ג" value={p.weight_kg} onChange={(e) => set("weight_kg", Number(e.target.value))} min={30} max={250} />
@@ -112,7 +119,7 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
       valid: true,
     },
     {
-      title: "מה את אוהבת?",
+      title: t("מה את אוהבת?", "מה אתה אוהב?"),
       sub: "סוגי האימון שנשים קדימה. יעד דקות הוא אופציונלי.",
       body: (
         <div className="space-y-5">
@@ -149,7 +156,7 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
       .select("*")
       .single();
     setSaving(false);
-    if (error || !data) return setError("לא הצלחנו לשמור. נסי שוב.");
+    if (error || !data) return setError(`לא הצלחנו לשמור. ${t("נסי", "נסה")} שוב.`);
     onSaved?.(data);
     if (mode === "onboarding") {
       router.replace("/");
@@ -171,7 +178,7 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
       <div className="mt-8 flex gap-3">
         {step > 0 && <Button variant="secondary" onClick={() => setStep(step - 1)}>חזרה</Button>}
         <Button className="flex-1" disabled={!steps[step].valid} loading={saving} onClick={() => (last ? save() : setStep(step + 1))}>
-          {last ? (mode === "onboarding" ? "יאללה, מתחילות" : "שמירה") : "הבא"}
+          {last ? (mode === "onboarding" ? t("יאללה, מתחילות", "יאללה, מתחילים") : "שמירה") : "הבא"}
         </Button>
       </div>
     </div>

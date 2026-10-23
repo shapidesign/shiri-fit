@@ -4,15 +4,17 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { db, userId } from "@/lib/db";
-import { BODY_STATES, FEELINGS } from "@/lib/labels";
+import { useProfile } from "@/components/profile-provider";
+import { BODY_STATES, FEELINGS, g } from "@/lib/labels";
 import type { BodyState, Feeling, WorkoutLog } from "@/lib/types";
 
 type Props = { open: boolean; onClose: () => void; onSaved?: () => void; log?: WorkoutLog | null };
 
 /** Separate "how did it feel?" entry — deliberately decoupled from the workout log so it can be filled later. */
 export function RecoverySheet({ open, onClose, onSaved, log }: Props) {
+  const { profile } = useProfile();
   return (
-    <Sheet open={open} onClose={onClose} title={log ? `איך היה ב${log.title}?` : "איך את מרגישה?"}>
+    <Sheet open={open} onClose={onClose} title={log ? `איך היה ב${log.title}?` : g(profile.gender, "איך את מרגישה?", "איך אתה מרגיש?")}>
       {open && <Form log={log} onDone={() => { onSaved?.(); onClose(); }} />}
     </Sheet>
   );

@@ -13,7 +13,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { removeCalendarEvent } from "@/lib/calendar-client";
 import { db, logsBetween } from "@/lib/db";
-import { BODY_STATES, DAY_NAMES, FEELINGS, intensityLabel, vibeLabel } from "@/lib/labels";
+import { BODY_STATES, DAY_NAMES, FEELINGS, g, intensityLabel, vibeLabel } from "@/lib/labels";
 import type { RecoveryLog, WorkoutLog } from "@/lib/types";
 
 type Period = "week" | "month" | "quarter" | "year";
@@ -115,7 +115,7 @@ export function ProgressScreen() {
           </Card>
 
           <Card>
-            <SectionTitle className="mb-1">באיזו שעה את מתאמנת?</SectionTitle>
+            <SectionTitle className="mb-1">{g(profile.gender, "באיזו שעה את מתאמנת?", "באיזו שעה אתה מתאמן?")}</SectionTitle>
             <p className="mb-3 text-xs text-muted">{workouts ? `הכי הרבה: ${byHour.reduce((a, b) => (b.count > a.count ? b : a)).label}` : "עוד אין מספיק נתונים"}</p>
             <Chart data={byHour} />
           </Card>
