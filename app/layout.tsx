@@ -15,6 +15,8 @@ const simpler = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://shiri-fit.vercel.app"),
+  openGraph: { title: "Shiri Fit", description: "האימונים של שירי", siteName: "Shiri Fit", locale: "he_IL", type: "website" },
   title: { default: "Shiri Fit", template: "%s · Shiri Fit" },
   description: "האימונים של שירי",
   applicationName: "Shiri Fit",
