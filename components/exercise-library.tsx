@@ -1,13 +1,22 @@
 "use client";
 
-import { Search, Sparkles } from "lucide-react";
+import { ChevronDown, Search, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+import Body, { type Slug } from "react-muscle-highlighter";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { useProfile } from "@/components/profile-provider";
-import { MUSCLES, equipmentLabel, g, muscleLabel } from "@/lib/labels";
+import { EQUIPMENT, MUSCLES, equipmentLabel, g, muscleLabel } from "@/lib/labels";
 import { searchExercises } from "@/lib/db";
 import type { Exercise } from "@/lib/types";
+
+// Body-map slugs → MUSCLES ids (the chip filter values).
+const SLUG_TO_MUSCLE: Partial<Record<Slug, string>> = {
+  abs: "abdominals", adductors: "adductors", biceps: "biceps", calves: "calves", chest: "chest", deltoids: "shoulders",
+  forearm: "forearms", gluteal: "glutes", hamstring: "hamstrings", "lower-back": "lower back", neck: "neck",
+  obliques: "obliques", quadriceps: "quads", trapezius: "traps", triceps: "triceps", "upper-back": "lats",
+};
+const MAP_DISABLED: Slug[] = ["ankles", "feet", "hair", "head", "knees", "hands", "tibialis"];
 
 type Props = { onSelect: (e: Exercise) => void; selectedIds?: Set<number> };
 
@@ -15,11 +24,12 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
   const { profile } = useProfile();
   const [q, setQ] = useState("");
   const [muscles, setMuscles] = useState<string[]>([]);
-  const [myGear, setMyGear] = useState(profile.equipment.length > 0);
+  const [gear, setGear] = useState(profile.equipment.length ? "mine" : "all");
   const [result, setResult] = useState<{ key: string; items: Exercise[] }>({ key: "", items: [] });
   const [mwState, setMwState] = useState<"idle" | "loading" | "unavailable" | "done">("idle");
+  const toggleMuscle = (id: string) => setMuscles((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  const categories = myGear ? [...profile.equipment, "bodyweight", "mat"] : undefined;
+  const categories = gear === "mine" ? [...profile.equipment, "bodyweight", "mat"] : gear === "all" ? undefined : [gear];
   const key = JSON.stringify([q.trim(), muscles, categories]);
   const loading = result.key !== key; // derived: no setState-in-effect needed
   const items = result.items;
@@ -54,13 +64,39 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
       </label>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none">
-        <Chip selected={myGear} onClick={() => setMyGear(!myGear)}>הציוד שלי</Chip>
+        <label className={`relative inline-flex h-11 shrink-0 items-center rounded-full border text-sm font-semibold ${gear === "all" ? "border-border bg-surface-2" : "border-accent bg-accent text-accent-ink"}`}>
+          <select value={gear} onChange={(e) => setGear(e.target.value)} aria-label="ציוד" className="h-full appearance-none rounded-full bg-transparent ps-4 pe-9 outline-none">
+            {profile.equipment.length > 0 && <option value="mine">הציוד שלי</option>}
+            <option value="all">כל הציוד</option>
+            {EQUIPMENT.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+          </select>
+          <ChevronDown className="pointer-events-none absolute end-3 h-4 w-4" aria-hidden />
+        </label>
         {MUSCLES.map((m) => (
-          <Chip key={m.id} selected={muscles.includes(m.id)} onClick={() => setMuscles((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]))}>
+          <Chip key={m.id} selected={muscles.includes(m.id)} onClick={() => toggleMuscle(m.id)}>
             {m.label}
           </Chip>
         ))}
       </div>
+
+      {!q.trim() && (
+        <div role="group" aria-label="מפת גוף: נגיעה בשריר מסננת תרגילים" className="grid grid-cols-2 gap-2 rounded-[24px] bg-surface p-3 [&_svg]:h-auto [&_svg]:w-full">
+          {(["front", "back"] as const).map((side) => (
+            <div key={side} className="cursor-pointer">
+              <Body
+                gender={profile.gender ?? "female"}
+                side={side}
+                border="none"
+                defaultFill="#a39d96"
+                disabledParts={MAP_DISABLED}
+                data={(Object.keys(SLUG_TO_MUSCLE) as Slug[]).filter((s) => muscles.includes(SLUG_TO_MUSCLE[s]!)).map((slug) => ({ slug, color: "#e9f739" }))}
+                onBodyPartPress={(p) => { const m = p.slug && SLUG_TO_MUSCLE[p.slug]; if (m) toggleMuscle(m); }}
+              />
+              <p className="text-center text-xs text-muted">{side === "front" ? "מלפנים" : "מאחור"}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {q.trim().length >= 2 && (
         <div className="flex items-center justify-between rounded-2xl bg-accent-soft px-4 py-2 text-sm">
@@ -80,7 +116,7 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
           {Array.from({ length: 6 }).map((_, i) => <li key={i} className="h-[72px] animate-pulse rounded-2xl bg-surface" />)}
         </ul>
       ) : items.length === 0 ? (
-        <p className="py-10 text-center text-muted">אין תרגילים שמתאימים לסינון. {g(profile.gender, "נסי", "נסה")} להוריד את ״הציוד שלי״.</p>
+        <p className="py-10 text-center text-muted">אין תרגילים שמתאימים לסינון. {g(profile.gender, "נסי", "נסה")} לבחור ציוד אחר.</p>
       ) : (
         <ul className="space-y-2">
           {items.map((e) => (
@@ -99,7 +135,7 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
           ))}
         </ul>
       )}
-      {!myGear && !loading && <p className="text-center text-xs text-muted">מוצגים {items.length} תרגילים. אפשר לצמצם עם ״הציוד שלי״ או קבוצת שרירים.</p>}
+      {gear === "all" && !loading && <p className="text-center text-xs text-muted">מוצגים {items.length} תרגילים. אפשר לצמצם לפי ציוד או קבוצת שרירים.</p>}
       {!profile.equipment.length && <p className="text-center text-xs text-muted">טיפ: {g(profile.gender, "עדכני", "עדכן")} ציוד בפרופיל כדי לסנן רק מה שיש לך.</p>}
     </div>
   );

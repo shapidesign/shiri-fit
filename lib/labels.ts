@@ -1,4 +1,5 @@
-import type { BodyState, Feeling, Intensity, Profile, Status, Vibe } from "./types";
+import { Activity, BatteryLow, Flame, Leaf, Lock, Smile, TriangleAlert, Wind, type LucideIcon } from "lucide-react";
+import type { BodyState, Feeling, Intensity, Phase, Profile, Status, Vibe } from "./types";
 
 /** Copy addressed to the user: feminine by default (null = not answered), masculine for men. */
 export const g = (gender: Profile["gender"], f: string, m: string) => (gender === "male" ? m : f);
@@ -27,19 +28,32 @@ export const intensityLabel = (i: string) => INTENSITIES.find((x) => x.id === i)
 
 export const STATUS_LABEL: Record<Status, string> = { planned: "מתוכנן", done: "בוצע", skipped: "דולג" };
 
-export const FEELINGS: { id: Feeling; label: string; emoji: string }[] = [
-  { id: "great", label: "היה מעולה", emoji: "🔥" },
-  { id: "good", label: "היה טוב", emoji: "🙂" },
-  { id: "hard", label: "היה קשה", emoji: "😮‍💨" },
-  { id: "exhausted", label: "גמורה", emoji: "🫠" },
+export const PHASE_LABEL: Record<Phase, string> = { warmup: "חימום", main: "אימון", cooldown: "שחרור" };
+
+type Tone = Status | "missed";
+const TONE_DOT: Record<Tone, string> = { done: "bg-success", planned: "bg-accent", missed: "bg-danger", skipped: "bg-muted/40" };
+const TONE_BORDER: Record<Tone, string> = { done: "border-success", planned: "border-accent", missed: "border-danger", skipped: "border-muted/40" };
+export const TONE_LEGEND = (["done", "planned", "missed", "skipped"] as const).map((t) => ({ dot: TONE_DOT[t], label: t === "missed" ? "פוספס" : t === "planned" ? "לביצוע" : STATUS_LABEL[t] }));
+
+/** Calendar colors: a planned workout whose date (yyyy-MM-dd) is before `today` counts as missed. */
+export function statusTone(w: { status: Status; date: string }, today: string) {
+  const t: Tone = w.status === "planned" && w.date < today ? "missed" : w.status;
+  return { dot: TONE_DOT[t], border: TONE_BORDER[t], label: t === "missed" ? "פוספס" : STATUS_LABEL[w.status] };
+}
+
+export const FEELINGS: { id: Feeling; label: string; Icon: LucideIcon }[] = [
+  { id: "great", label: "היה מעולה", Icon: Flame },
+  { id: "good", label: "היה טוב", Icon: Smile },
+  { id: "hard", label: "היה קשה", Icon: Wind },
+  { id: "exhausted", label: "גמורה", Icon: BatteryLow },
 ];
 export const feelingLabel = (id: Feeling, gender: Profile["gender"]) =>
   id === "exhausted" ? g(gender, "גמורה", "גמור") : FEELINGS.find((f) => f.id === id)?.label ?? id;
-export const BODY_STATES: { id: BodyState; label: string }[] = [
-  { id: "fresh", label: "הגוף רענן" },
-  { id: "tight", label: "הגוף תפוס" },
-  { id: "sore", label: "כאבי שרירים" },
-  { id: "pain", label: "משהו כואב" },
+export const BODY_STATES: { id: BodyState; label: string; Icon: LucideIcon }[] = [
+  { id: "fresh", label: "הגוף רענן", Icon: Leaf },
+  { id: "tight", label: "הגוף תפוס", Icon: Lock },
+  { id: "sore", label: "כאבי שרירים", Icon: Activity },
+  { id: "pain", label: "משהו כואב", Icon: TriangleAlert },
 ];
 
 // MuscleWiki muscle ids → Hebrew. Keys are lowercase API values.
@@ -79,6 +93,10 @@ export const EQUIPMENT: { id: string; label: string }[] = [
   { id: "exercise ball", label: "כדור פיזיו" },
   { id: "medicine ball", label: "כדור כוח" },
 ];
+// "other" (unknown gear) keeps the kg field, so only categories known to be weight-free are listed.
+const NO_WEIGHT = new Set(["bodyweight", "mat", "bands", "trx", "pilates reformer", "exercise ball"]);
+/** Whether to log kg for an exercise; null = custom exercise, weight optional. */
+export const needsWeight = (category: string | null) => !category || !NO_WEIGHT.has(category);
 export const equipmentLabel = (e: string) => EQUIPMENT.find((x) => x.id === e)?.label ?? (e === "other" ? "ציוד אחר" : e);
 
 export const GOALS: { id: string; label: string }[] = [

@@ -2,7 +2,7 @@
 
 import { endOfWeek, format, isToday, startOfWeek } from "date-fns";
 import { he } from "date-fns/locale";
-import { HeartPulse, Play, Plus, User } from "lucide-react";
+import { Check, HeartPulse, Play, Plus, User } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useProfile } from "@/components/profile-provider";
@@ -10,25 +10,29 @@ import { Card, Eyebrow } from "@/components/ui/card";
 import { Rings } from "@/components/ui/ring";
 import { LogWorkoutSheet } from "@/components/log-workout-sheet";
 import { RecoverySheet } from "@/components/recovery-sheet";
-import { db, logsBetween } from "@/lib/db";
+import { activePlan, db, logsBetween } from "@/lib/db";
 import { g, vibeLabel } from "@/lib/labels";
-import type { ScheduledWorkout, WorkoutLog } from "@/lib/types";
+import type { ScheduledWorkout, WorkoutLog, WorkoutPlan } from "@/lib/types";
+
+type PlanProgress = { plan: WorkoutPlan; done: number };
 
 async function fetchHome() {
   const today = format(new Date(), "yyyy-MM-dd");
-  const [nx, week, rc] = await Promise.all([
+  const [nx, week, rc, plan] = await Promise.all([
     db().from("scheduled_workouts").select("*").eq("status", "planned").gte("date", today).order("date").order("time").limit(1).maybeSingle(),
     logsBetween(startOfWeek(new Date(), { weekStartsOn: 0 }).toISOString(), endOfWeek(new Date(), { weekStartsOn: 0 }).toISOString()),
     db().from("workout_logs").select("*").order("performed_at", { ascending: false }).limit(3),
+    activePlan(),
   ]);
   if (nx.error || rc.error) throw nx.error ?? rc.error;
-  return { next: (nx.data as ScheduledWorkout | null) ?? null, week, recent: (rc.data ?? []) as WorkoutLog[] };
+  return { next: (nx.data as ScheduledWorkout | null) ?? null, week, recent: (rc.data ?? []) as WorkoutLog[], plan };
 }
 
 export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean }) {
   const { profile } = useProfile();
   const [next, setNext] = useState<ScheduledWorkout | null | undefined>(undefined);
   const [week, setWeek] = useState<WorkoutLog[]>([]);
+  const [plan, setPlan] = useState<PlanProgress | null | undefined>(undefined);
   const [recent, setRecent] = useState<WorkoutLog[]>([]);
   const [logging, setLogging] = useState(false);
   const [recovery, setRecovery] = useState(openRecovery);
@@ -36,13 +40,12 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
 
   const load = useCallback(() => {
     setLoadError(false);
-    fetchHome().then((h) => { setNext(h.next); setWeek(h.week); setRecent(h.recent); }).catch(() => setLoadError(true));
+    fetchHome().then((h) => { setNext(h.next); setWeek(h.week); setPlan(h.plan); setRecent(h.recent); }).catch(() => setLoadError(true));
   }, []);
   useEffect(load, [load]);
 
   const workouts = week.length;
-  const minutes = week.reduce((n, l) => n + l.duration_min, 0);
-  const kcal = week.reduce((n, l) => n + l.calories, 0);
+  const planGoal = plan ? Math.max(1, plan.plan.target_workouts) : 0;
   const firstName = profile.display_name?.split(" ")[0];
 
   return (
@@ -81,16 +84,17 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
         <Rings
           size={128}
           rings={[
-            { value: workouts / Math.max(1, profile.days_per_week), color: "var(--ring-1)", label: "אימונים" },
-            ...(profile.weekly_minutes_goal ? [{ value: minutes / profile.weekly_minutes_goal, color: "var(--ring-2)", label: "דקות" }] : []),
-            { value: kcal / Math.max(1, profile.weekly_kcal_goal), color: "var(--ring-3)", label: "קלוריות" },
+            { value: workouts / Math.max(1, profile.days_per_week), color: "var(--ring-1)", label: "אימונים השבוע" },
+            ...(plan ? [{ value: plan.done / planGoal, color: "var(--ring-2)", label: "תוכנית החודש" }] : []),
           ]}
         />
         <div className="flex-1 space-y-2">
-          <p className="text-sm font-semibold text-muted">השבוע שלך</p>
-          <Stat color="var(--ring-1)" label="אימונים" value={`${workouts}/${profile.days_per_week}`} />
-          {profile.weekly_minutes_goal ? <Stat color="var(--ring-2)" label="דקות" value={`${minutes}/${profile.weekly_minutes_goal}`} /> : null}
-          <Stat color="var(--ring-3)" label="קק״ל" value={`${kcal}/${profile.weekly_kcal_goal}`} />
+          <Stat color="var(--ring-1)" label="אימונים השבוע" value={`${workouts}/${profile.days_per_week}`} />
+          {plan ? (
+            <Stat color="var(--ring-2)" label="תוכנית החודש" value={`${plan.done}/${plan.plan.target_workouts}`} />
+          ) : plan === null ? (
+            <Link href="/plan/new" className="text-sm font-semibold underline">לבנות תוכנית חודשית</Link>
+          ) : null}
         </div>
       </Card>
 
@@ -115,8 +119,9 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
           </div>
           <ul className="space-y-2">
             {recent.map((l) => (
-              <li key={l.id} className="flex items-center justify-between rounded-2xl border border-border bg-surface-2 px-4 py-3">
-                <div>
+              <li key={l.id} className="flex items-center gap-3 rounded-2xl border border-border bg-surface-2 px-4 py-3">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-success text-accent-ink" aria-hidden><Check className="h-4 w-4" /></span>
+                <div className="flex-1">
                   <p className="font-semibold">{l.title}</p>
                   <p className="text-xs text-muted">{format(new Date(l.performed_at), "EEEE d.M · HH:mm", { locale: he })} · {vibeLabel(l.vibe)}</p>
                 </div>
@@ -128,7 +133,7 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
       )}
 
       <LogWorkoutSheet open={logging} onClose={() => setLogging(false)} onSaved={load} />
-      <RecoverySheet open={recovery} log={recent[0] ?? null} onClose={() => setRecovery(false)} />
+      <RecoverySheet open={recovery} onClose={() => setRecovery(false)} />
     </main>
   );
 }

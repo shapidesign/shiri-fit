@@ -55,7 +55,6 @@ export function ProgressScreen() {
   const weeks = Math.max(1, differenceInCalendarWeeks(to, from, { weekStartsOn: 0 }) + 1);
   const workouts = logs.length;
   const minutes = logs.reduce((n, l) => n + l.duration_min, 0);
-  const kcal = logs.reduce((n, l) => n + l.calories, 0);
 
   // Buckets: days (week), weeks (month/quarter), months (year)
   const buckets = useMemo(() => {
@@ -106,13 +105,11 @@ export function ProgressScreen() {
               rings={[
                 { value: workouts / (profile.days_per_week * weeks), color: "var(--ring-1)", label: "אימונים" },
                 ...(profile.weekly_minutes_goal ? [{ value: minutes / (profile.weekly_minutes_goal * weeks), color: "var(--ring-2)", label: "דקות" }] : []),
-                { value: kcal / (profile.weekly_kcal_goal * weeks), color: "var(--ring-3)", label: "קלוריות" },
               ]}
             />
             <div className="flex-1 space-y-3">
               <Big color="var(--ring-1)" label="אימונים" value={workouts} target={profile.days_per_week * weeks} />
               {profile.weekly_minutes_goal ? <Big color="var(--ring-2)" label="דקות" value={minutes} target={profile.weekly_minutes_goal * weeks} /> : null}
-              <Big color="var(--ring-3)" label="קק״ל" value={kcal} target={profile.weekly_kcal_goal * weeks} />
             </div>
           </Card>
 
@@ -145,7 +142,7 @@ export function ProgressScreen() {
             <Card tone="accent">
               <SectionTitle className="mb-3">איך הרגשת</SectionTitle>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                {FEELINGS.map((f) => { const n = recovery.filter((r) => r.feeling === f.id).length; return n ? <p key={f.id} className="flex justify-between"><span>{f.emoji} {feelingLabel(f.id, profile.gender)}</span><b className="tabular-nums">{n}</b></p> : null; })}
+                {FEELINGS.map((f) => { const n = recovery.filter((r) => r.feeling === f.id).length; return n ? <p key={f.id} className="flex justify-between"><span className="flex items-center gap-1.5"><f.Icon className="h-4 w-4" aria-hidden /> {feelingLabel(f.id, profile.gender)}</span><b className="tabular-nums">{n}</b></p> : null; })}
                 {BODY_STATES.map((b) => { const n = recovery.filter((r) => r.body_state === b.id).length; return n ? <p key={b.id} className="flex justify-between text-muted"><span>{b.label}</span><b className="tabular-nums">{n}</b></p> : null; })}
               </div>
             </Card>

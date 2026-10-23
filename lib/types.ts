@@ -6,6 +6,7 @@ export type Intensity = "light" | "moderate" | "hard";
 export type Status = "planned" | "done" | "skipped";
 export type Feeling = "great" | "good" | "hard" | "exhausted";
 export type BodyState = "fresh" | "tight" | "sore" | "pain";
+export type Phase = "warmup" | "main" | "cooldown";
 
 export type Profile = {
   id: string;
@@ -16,11 +17,12 @@ export type Profile = {
   height_cm: number | null;
   birth_year: number | null;
   equipment: string[];
+  /** null = not asked, true = a pair of each weight, false = one dumbbell of each weight. */
+  dumbbell_pairs: boolean | null;
   days_per_week: number;
   goals: string[];
   vibes: string[];
   weekly_minutes_goal: number | null;
-  weekly_kcal_goal: number;
   reminder_minutes_before: number;
   calendar_sync: boolean;
   onboarding_done: boolean;
@@ -70,6 +72,7 @@ export type TemplateExercise = {
   duration_sec: number | null;
   weight_kg: number | null;
   notes: string | null;
+  phase: Phase;
 };
 
 export type ScheduledWorkout = {
@@ -86,8 +89,22 @@ export type ScheduledWorkout = {
   duration_min: number;
   google_event_id: string | null;
   series_id: string | null;
+  plan_id: string | null;
   reminded_at: string | null;
   notes: string | null;
+  created_at: string;
+};
+
+export type WorkoutPlan = {
+  id: string;
+  user_id: string;
+  goals: string[];
+  /** 0 = novice exercises only, 1 = up to intermediate, 2 = everything. */
+  level: number;
+  target_workouts: number;
+  target_note: string | null;
+  starts_on: string;
+  ends_on: string;
   created_at: string;
 };
 
@@ -155,6 +172,7 @@ export type Database = {
       workout_templates: Table<WorkoutTemplate, "user_id" | "name">;
       template_exercises: Table<TemplateExercise, "template_id">;
       scheduled_workouts: Table<ScheduledWorkout, "user_id" | "date" | "title">;
+      workout_plans: Table<WorkoutPlan, "user_id" | "target_workouts" | "starts_on" | "ends_on">;
       workout_logs: Table<WorkoutLog, "user_id" | "title" | "duration_min">;
       recovery_logs: Table<RecoveryLog, "user_id" | "feeling" | "body_state">;
       push_subscriptions: Table<PushSubscriptionRow, "user_id" | "endpoint" | "p256dh" | "auth">;

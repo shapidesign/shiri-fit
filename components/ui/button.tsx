@@ -4,7 +4,7 @@ import type { ButtonHTMLAttributes } from "react";
 import { Loader2 } from "lucide-react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger" | "strong";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "strong" | "success";
   size?: "md" | "lg" | "sm";
   loading?: boolean;
 };
@@ -15,6 +15,7 @@ const variants = {
   secondary: "bg-surface-2 text-ink border border-border",
   ghost: "bg-transparent text-ink",
   danger: "bg-danger/10 text-danger",
+  success: "bg-success text-accent-ink",
 };
 const sizes = { sm: "h-10 px-4 text-sm", md: "h-12 px-5 text-base", lg: "h-14 px-6 text-lg" };
 

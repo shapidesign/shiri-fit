@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
-export function PageHeader({ title, eyebrow, back, action }: { title: string; eyebrow?: string; back?: string; action?: React.ReactNode }) {
+export function PageHeader({ title, eyebrow, back, onBack, action }: { title: string; eyebrow?: string; back?: string; onBack?: () => void; action?: React.ReactNode }) {
+  const cls = "mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-surface";
   return (
     <header className="mb-5 flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
-        {back && (
-          <Link href={back} aria-label="חזרה" className="mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-surface">
-            <ChevronRight className="h-5 w-5" />
-          </Link>
+        {onBack ? (
+          <button type="button" onClick={onBack} aria-label="חזרה" className={cls}><ChevronRight className="h-5 w-5" /></button>
+        ) : back && (
+          <Link href={back} aria-label="חזרה" className={cls}><ChevronRight className="h-5 w-5" /></Link>
         )}
         <div className="min-w-0">
           {eyebrow && <p className="text-sm text-muted">{eyebrow}</p>}

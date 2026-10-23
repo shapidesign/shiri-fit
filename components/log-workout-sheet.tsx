@@ -9,6 +9,7 @@ import { Field, Stepper } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { useProfile } from "@/components/profile-provider";
 import { syncCalendar } from "@/lib/calendar-client";
+import { celebrate } from "@/lib/celebrate";
 import { db, userId } from "@/lib/db";
 import { INTENSITIES, VIBES } from "@/lib/labels";
 import { estimateCalories } from "@/lib/met";
@@ -29,7 +30,7 @@ type Props = {
 export function LogWorkoutSheet({ open, onClose, onSaved, scheduled, session }: Props) {
   return (
     <Sheet open={open} onClose={onClose} title={scheduled ? "סיימת? כל הכבוד" : "תיעוד אימון"}>
-      {open && <Form scheduled={scheduled} session={session} onSaved={(l) => { onSaved(l); onClose(); }} />}
+      {open && <Form scheduled={scheduled} session={session} onSaved={(l) => { onClose(); void celebrate(session ? "אימון הושלם" : "האימון נשמר").then(() => onSaved(l)); }} />}
     </Sheet>
   );
 }

@@ -5,7 +5,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, Stepper } from "@/components/ui/field";
-import { EQUIPMENT, GOALS, VIBES, g } from "@/lib/labels";
+import { EquipmentPicker, equipmentValid } from "@/components/equipment-picker";
+import { GOALS, VIBES, g } from "@/lib/labels";
 import { CalendarCheck } from "lucide-react";
 import { createClient, signInWithGoogle } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
@@ -28,11 +29,11 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
     height_cm: profile.height_cm ?? 165,
     birth_year: profile.birth_year ?? 1995,
     equipment: profile.equipment,
+    dumbbell_pairs: profile.dumbbell_pairs,
     days_per_week: profile.days_per_week,
     goals: profile.goals,
     vibes: profile.vibes,
     weekly_minutes_goal: profile.weekly_minutes_goal,
-    weekly_kcal_goal: profile.weekly_kcal_goal,
   });
   const set = <K extends keyof typeof p>(k: K, v: (typeof p)[K]) => setP((s) => ({ ...s, [k]: v }));
   const t = (f: string, m: string) => g(p.gender, f, m);
@@ -89,13 +90,9 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
       title: "איזה ציוד יש לך?",
       sub: "נציע תרגילים רק עם מה שבאמת יש בבית או בסטודיו.",
       body: (
-        <ChipRow>
-          {EQUIPMENT.map((e) => (
-            <Chip key={e.id} selected={p.equipment.includes(e.id)} onClick={() => set("equipment", toggle(p.equipment, e.id))}>{e.label}</Chip>
-          ))}
-        </ChipRow>
+        <EquipmentPicker equipment={p.equipment} onEquipment={(e) => set("equipment", e)} pairs={p.dumbbell_pairs} onPairs={(v) => set("dumbbell_pairs", v)} />
       ),
-      valid: true,
+      valid: equipmentValid(p.equipment, p.dumbbell_pairs),
     },
     {
       title: "כמה ומה המטרה?",
@@ -136,7 +133,6 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
               <button type="button" onClick={() => set("weekly_minutes_goal", null)} className="mt-1.5 text-xs font-semibold text-muted underline">בלי יעד דקות</button>
             </div>
           )}
-          <Stepper label="יעד קלוריות בשבוע" value={p.weekly_kcal_goal} onChange={(v) => set("weekly_kcal_goal", v)} min={200} max={6000} step={100} suffix="קק״ל" />
         </div>
       ),
       valid: true,

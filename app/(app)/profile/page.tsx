@@ -56,6 +56,7 @@ export default function ProfilePage() {
           <dt className="text-muted">אימונים בשבוע</dt><dd className="font-semibold">{profile.days_per_week}</dd>
           {profile.weekly_minutes_goal && <><dt className="text-muted">יעד דקות</dt><dd className="font-semibold">{profile.weekly_minutes_goal} דק׳</dd></>}
           <dt className="text-muted">ציוד</dt><dd className="font-semibold">{label(EQUIPMENT, profile.equipment)}</dd>
+          {profile.equipment.includes("dumbbells") && profile.dumbbell_pairs !== null && <><dt className="text-muted">משקולות יד</dt><dd className="font-semibold">{profile.dumbbell_pairs ? "זוג מכל משקל" : "אחת מכל משקל"}</dd></>}
           <dt className="text-muted">מטרות</dt><dd className="font-semibold">{label(GOALS, profile.goals)}</dd>
           <dt className="text-muted">{g(profile.gender, "אוהבת", "אוהב")}</dt><dd className="font-semibold">{label(VIBES, profile.vibes)}</dd>
         </dl>
