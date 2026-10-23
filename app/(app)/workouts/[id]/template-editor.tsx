@@ -79,13 +79,16 @@ export function TemplateEditor({ id }: { id: string }) {
       if (error || !data) { setSaving(false); return alert("השמירה נכשלה"); }
       templateId = data.id;
     } else {
-      await supabase.from("workout_templates").update(base).eq("id", id);
-      await supabase.from("template_exercises").delete().eq("template_id", id);
+      const { error } = await supabase.from("workout_templates").update(base).eq("id", id);
+      if (error) { setSaving(false); return alert("השמירה נכשלה"); }
+      const { error: delErr } = await supabase.from("template_exercises").delete().eq("template_id", id);
+      if (delErr) { setSaving(false); return alert("השמירה נכשלה"); }
     }
     if (rows.length) {
-      await supabase.from("template_exercises").insert(
+      const { error } = await supabase.from("template_exercises").insert(
         rows.map((r, i) => ({ template_id: templateId, exercise_id: r.exercise?.id ?? null, custom_name: r.custom_name, position: i, sets: r.sets, reps: r.reps, duration_sec: r.duration_sec, weight_kg: r.weight_kg, notes: r.notes })),
       );
+      if (error) { setSaving(false); return alert("השמירה נכשלה"); }
     }
     router.replace("/workouts");
     router.refresh();
@@ -93,7 +96,8 @@ export function TemplateEditor({ id }: { id: string }) {
 
   async function remove() {
     if (!confirm("למחוק את התבנית? אימונים שכבר שובצו יישארו.")) return;
-    await db().from("workout_templates").delete().eq("id", id);
+    const { error } = await db().from("workout_templates").delete().eq("id", id);
+    if (error) return alert("המחיקה נכשלה");
     router.replace("/workouts");
   }
 

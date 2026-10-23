@@ -10,6 +10,7 @@ function LoginInner() {
   const params = useSearchParams();
   const [loading, setLoading] = useState(false);
   const notAllowed = params.get("error") === "not_allowed";
+  const oauthFailed = params.get("error") === "oauth";
 
   async function signIn() {
     setLoading(true);
@@ -29,6 +30,11 @@ function LoginInner() {
         {notAllowed && (
           <p role="alert" className="rounded-2xl bg-danger/10 px-4 py-3 text-danger">
             החשבון הזה לא מורשה להיכנס לאפליקציה.
+          </p>
+        )}
+        {oauthFailed && (
+          <p role="alert" className="rounded-2xl bg-danger/10 px-4 py-3 text-danger">
+            ההתחברות עם Google נכשלה. אפשר לנסות שוב.
           </p>
         )}
         <Button onClick={signIn} loading={loading} className="w-full">

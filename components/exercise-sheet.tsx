@@ -33,8 +33,9 @@ function Body({ exercise, onPick, onRename }: { exercise: Exercise } & Pick<Prop
   const bodymap = (exercise.bodymap as { female?: string | null } | null)?.female;
 
   async function saveName() {
-    const { data } = await db().from("exercises").update({ name_he: nameHe || null }).eq("id", exercise.id).select("*").single();
-    if (data) onRename?.(data as Exercise);
+    const { data, error } = await db().from("exercises").update({ name_he: nameHe || null }).eq("id", exercise.id).select("*").single();
+    if (error || !data) return alert("השמירה נכשלה");
+    onRename?.(data as Exercise);
     setEditing(false);
   }
 

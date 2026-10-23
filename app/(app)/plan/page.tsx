@@ -38,7 +38,8 @@ export default function PlanPage() {
   const dayItems = forDay(selected);
 
   async function setStatus(w: ScheduledWorkout, status: ScheduledWorkout["status"]) {
-    await db().from("scheduled_workouts").update({ status }).eq("id", w.id);
+    const { error } = await db().from("scheduled_workouts").update({ status }).eq("id", w.id);
+    if (error) return alert("השמירה נכשלה");
     reload();
   }
 

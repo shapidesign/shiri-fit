@@ -23,7 +23,7 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
   const [error, setError] = useState<string | null>(null);
   const [p, setP] = useState({
     display_name: profile.display_name ?? "",
-    gender: profile.gender,
+    gender: profile.gender ?? "female",
     weight_kg: profile.weight_kg ?? 60,
     height_cm: profile.height_cm ?? 165,
     birth_year: profile.birth_year ?? 1995,
@@ -72,7 +72,7 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
         <div className="space-y-4">
           <div role="group" aria-label="מגדר" className="grid grid-cols-2 gap-3">
             {([["female", "אישה"], ["male", "גבר"]] as const).map(([id, label]) => (
-              <Chip key={id} selected={(p.gender ?? "female") === id} onClick={() => set("gender", id)} className="justify-center">{label}</Chip>
+              <Chip key={id} selected={p.gender === id} onClick={() => set("gender", id)} className="justify-center">{label}</Chip>
             ))}
           </div>
           <Field label="איך לקרוא לך?" name="display_name" value={p.display_name} onChange={(e) => set("display_name", e.target.value)} autoComplete="given-name" />

@@ -13,7 +13,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { removeCalendarEvent } from "@/lib/calendar-client";
 import { db, logsBetween } from "@/lib/db";
-import { BODY_STATES, DAY_NAMES, FEELINGS, g, intensityLabel, vibeLabel } from "@/lib/labels";
+import { BODY_STATES, DAY_NAMES, FEELINGS, feelingLabel, g, intensityLabel, vibeLabel } from "@/lib/labels";
 import type { RecoveryLog, WorkoutLog } from "@/lib/types";
 
 type Period = "week" | "month" | "quarter" | "year";
@@ -37,14 +37,19 @@ export function ProgressScreen() {
   const [recovery, setRecovery] = useState<RecoveryLog[]>([]);
   const [all, setAll] = useState<WorkoutLog[]>([]);
   const [detail, setDetail] = useState<WorkoutLog | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const { from, to } = useMemo(() => range(period), [period]);
   useEffect(() => {
-    logsBetween(from.toISOString(), to.toISOString()).then(setLogs);
-    db().from("recovery_logs").select("*").gte("created_at", from.toISOString()).then(({ data }) => setRecovery((data ?? []) as RecoveryLog[]));
+    setLoadError(false);
+    logsBetween(from.toISOString(), to.toISOString()).then(setLogs).catch(() => setLoadError(true));
+    db().from("recovery_logs").select("*").gte("created_at", from.toISOString()).then(({ data, error }) => {
+      if (error) setLoadError(true);
+      else setRecovery((data ?? []) as RecoveryLog[]);
+    });
   }, [from, to]);
   useEffect(() => {
-    if (tab === "history") db().from("workout_logs").select("*").order("performed_at", { ascending: false }).limit(300).then(({ data }) => setAll((data ?? []) as WorkoutLog[]));
+    if (tab === "history") db().from("workout_logs").select("*").order("performed_at", { ascending: false }).limit(300).then(({ data, error }) => { if (error) setLoadError(true); else setAll((data ?? []) as WorkoutLog[]); });
   }, [tab]);
 
   const weeks = Math.max(1, differenceInCalendarWeeks(to, from, { weekStartsOn: 0 }) + 1);
@@ -72,7 +77,8 @@ export function ProgressScreen() {
 
   async function removeLog(l: WorkoutLog) {
     if (!confirm("למחוק את האימון מההיסטוריה?")) return;
-    await db().from("workout_logs").delete().eq("id", l.id);
+    const { error } = await db().from("workout_logs").delete().eq("id", l.id);
+    if (error) return alert("המחיקה נכשלה");
     if (l.scheduled_id) await db().from("scheduled_workouts").update({ status: "planned" }).eq("id", l.scheduled_id);
     else void removeCalendarEvent(l.google_event_id);
     setAll((a) => a.filter((x) => x.id !== l.id));
@@ -84,6 +90,7 @@ export function ProgressScreen() {
     <main>
       <PageHeader title="התקדמות" eyebrow="בדרך שלך" />
       <Segmented value={tab} onChange={(t) => router.replace(`/progress?tab=${t}`)} options={[{ id: "overview", label: "סקירה" }, { id: "history", label: "היסטוריה" }]} />
+      {loadError && <p role="alert" className="mt-4 text-danger">{g(profile.gender, "לא הצלחנו לטעון. נסי לרענן.", "לא הצלחנו לטעון. נסה לרענן.")}</p>}
 
       {tab === "overview" ? (
         <div className="space-y-4">
@@ -138,7 +145,7 @@ export function ProgressScreen() {
             <Card tone="accent">
               <SectionTitle className="mb-3">איך הרגשת</SectionTitle>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                {FEELINGS.map((f) => { const n = recovery.filter((r) => r.feeling === f.id).length; return n ? <p key={f.id} className="flex justify-between"><span>{f.emoji} {f.label}</span><b className="tabular-nums">{n}</b></p> : null; })}
+                {FEELINGS.map((f) => { const n = recovery.filter((r) => r.feeling === f.id).length; return n ? <p key={f.id} className="flex justify-between"><span>{f.emoji} {feelingLabel(f.id, profile.gender)}</span><b className="tabular-nums">{n}</b></p> : null; })}
                 {BODY_STATES.map((b) => { const n = recovery.filter((r) => r.body_state === b.id).length; return n ? <p key={b.id} className="flex justify-between text-muted"><span>{b.label}</span><b className="tabular-nums">{n}</b></p> : null; })}
               </div>
             </Card>

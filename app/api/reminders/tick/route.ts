@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { bearerOk } from "@/lib/allowlist";
 import { pushToUser } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/server";
 import { wallClock } from "@/lib/google-calendar";
@@ -9,7 +10,7 @@ import { wallClock } from "@/lib/google-calendar";
  * 2. Workout logs finished 2h+ ago without a recovery entry → "how did it feel?" push (once).
  */
 export async function POST(request: NextRequest) {
-  if (request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!bearerOk(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const admin = createAdminClient();

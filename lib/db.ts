@@ -1,5 +1,6 @@
 "use client";
 
+import { exerciseOr } from "@/lib/exercise-or";
 import { createClient } from "@/lib/supabase/client";
 import type { LoggedSet } from "@/lib/progression";
 import type { Exercise, Profile, ScheduledWorkout, TemplateExercise, Vibe, WorkoutLog, WorkoutTemplate } from "@/lib/types";
@@ -29,7 +30,8 @@ export async function getTemplate(id: string): Promise<TemplateWithExercises | n
 
 export async function searchExercises(opts: { q?: string; muscles?: string[]; categories?: string[]; limit?: number }): Promise<Exercise[]> {
   let query = db().from("exercises").select("*").limit(opts.limit ?? 60);
-  if (opts.q) query = query.or(`name.ilike.%${opts.q}%,name_he.ilike.%${opts.q}%`);
+  const or = opts.q ? exerciseOr(opts.q) : null;
+  if (or) query = query.or(or);
   if (opts.muscles?.length) query = query.overlaps("muscles", opts.muscles);
   if (opts.categories?.length) query = query.in("category", opts.categories);
   // MuscleWiki rows (with video) first, then by name
@@ -43,7 +45,8 @@ export async function scheduleBetween(from: string, to: string): Promise<Schedul
 }
 
 export async function logsBetween(fromIso: string, toIso: string): Promise<WorkoutLog[]> {
-  const { data } = await db().from("workout_logs").select("*").gte("performed_at", fromIso).lte("performed_at", toIso).order("performed_at", { ascending: false });
+  const { data, error } = await db().from("workout_logs").select("*").gte("performed_at", fromIso).lte("performed_at", toIso).order("performed_at", { ascending: false });
+  if (error) throw error;
   return (data ?? []) as WorkoutLog[];
 }
 

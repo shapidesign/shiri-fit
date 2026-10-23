@@ -61,7 +61,8 @@ function Form({ date, existing, templates, onDone }: Omit<Props, "open" | "onClo
     };
 
     if (existing) {
-      await supabase.from("scheduled_workouts").update({ ...base, date: day }).eq("id", existing.id);
+      const { error } = await supabase.from("scheduled_workouts").update({ ...base, date: day }).eq("id", existing.id);
+      if (error) { setSaving(false); return alert("השמירה נכשלה"); }
       if (profile.calendar_sync) void syncCalendar("scheduled", existing.id);
     } else {
       const uid = await userId();
@@ -69,7 +70,8 @@ function Form({ date, existing, templates, onDone }: Omit<Props, "open" | "onClo
       const rows = Array.from({ length: weeks }, (_, i) => ({
         ...base, user_id: uid, date: format(addWeeks(new Date(day), i), "yyyy-MM-dd"), series_id: series,
       }));
-      const { data } = await supabase.from("scheduled_workouts").insert(rows).select("id");
+      const { data, error } = await supabase.from("scheduled_workouts").insert(rows).select("id");
+      if (error) { setSaving(false); return alert("השמירה נכשלה"); }
       if (profile.calendar_sync) data?.forEach((r) => void syncCalendar("scheduled", r.id));
     }
     setSaving(false);
@@ -83,8 +85,10 @@ function Form({ date, existing, templates, onDone }: Omit<Props, "open" | "onClo
     const q = series && existing.series_id
       ? supabase.from("scheduled_workouts").select("id, google_event_id").eq("series_id", existing.series_id).gte("date", existing.date)
       : supabase.from("scheduled_workouts").select("id, google_event_id").eq("id", existing.id);
-    const { data } = await q;
-    await supabase.from("scheduled_workouts").delete().in("id", (data ?? []).map((r) => r.id));
+    const { data, error } = await q;
+    if (error || !data?.length) return alert("המחיקה נכשלה");
+    const { error: delErr } = await supabase.from("scheduled_workouts").delete().in("id", data.map((r) => r.id));
+    if (delErr) return alert("המחיקה נכשלה");
     data?.forEach((r) => void removeCalendarEvent(r.google_event_id));
     onDone();
   }

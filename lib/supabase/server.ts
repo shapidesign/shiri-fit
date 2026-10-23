@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/types";
+
+export { createAdminClient } from "@/lib/supabase/admin";
 
 /** Cookie-backed client for the logged-in user (route handlers / server components). */
 export async function createClient() {
@@ -21,14 +22,5 @@ export async function createClient() {
         },
       },
     },
-  );
-}
-
-/** Service-role client. Server only. Bypasses RLS — use for cron, token storage, exercise cache. */
-export function createAdminClient() {
-  return createSupabaseClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
   );
 }

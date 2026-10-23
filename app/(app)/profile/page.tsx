@@ -19,8 +19,10 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
 
   async function patch(p: Partial<typeof profile>) {
+    const prev = profile;
     setProfile({ ...profile, ...p });
-    await db().from("profiles").update(p).eq("id", profile.id);
+    const { error } = await db().from("profiles").update(p).eq("id", profile.id);
+    if (error) { setProfile(prev); alert("השמירה נכשלה"); }
   }
 
   async function signOut() {

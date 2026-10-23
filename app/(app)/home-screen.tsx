@@ -16,12 +16,13 @@ import type { ScheduledWorkout, WorkoutLog } from "@/lib/types";
 
 async function fetchHome() {
   const today = format(new Date(), "yyyy-MM-dd");
-  const [{ data: nx }, week, { data: rc }] = await Promise.all([
+  const [nx, week, rc] = await Promise.all([
     db().from("scheduled_workouts").select("*").eq("status", "planned").gte("date", today).order("date").order("time").limit(1).maybeSingle(),
     logsBetween(startOfWeek(new Date(), { weekStartsOn: 0 }).toISOString(), endOfWeek(new Date(), { weekStartsOn: 0 }).toISOString()),
     db().from("workout_logs").select("*").order("performed_at", { ascending: false }).limit(3),
   ]);
-  return { next: (nx as ScheduledWorkout | null) ?? null, week, recent: (rc ?? []) as WorkoutLog[] };
+  if (nx.error || rc.error) throw nx.error ?? rc.error;
+  return { next: (nx.data as ScheduledWorkout | null) ?? null, week, recent: (rc.data ?? []) as WorkoutLog[] };
 }
 
 export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean }) {
@@ -31,9 +32,11 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
   const [recent, setRecent] = useState<WorkoutLog[]>([]);
   const [logging, setLogging] = useState(false);
   const [recovery, setRecovery] = useState(openRecovery);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(() => {
-    fetchHome().then((h) => { setNext(h.next); setWeek(h.week); setRecent(h.recent); });
+    setLoadError(false);
+    fetchHome().then((h) => { setNext(h.next); setWeek(h.week); setRecent(h.recent); }).catch(() => setLoadError(true));
   }, []);
   useEffect(load, [load]);
 
@@ -44,6 +47,7 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
 
   return (
     <main className="space-y-4">
+      {loadError && <p role="alert" className="rounded-2xl bg-danger/10 px-4 py-3 text-danger">{g(profile.gender, "לא הצלחנו לטעון. נסי לרענן.", "לא הצלחנו לטעון. נסה לרענן.")}</p>}
       <header className="flex items-start justify-between">
         <div>
           <p className="text-sm text-muted">· זמן בשבילך</p>
@@ -52,7 +56,7 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
         <Link href="/profile" aria-label="הפרופיל שלי" className="grid h-11 w-11 place-items-center rounded-2xl bg-surface"><User className="h-5 w-5" /></Link>
       </header>
 
-      <Card tone="strong" className="relative overflow-hidden">
+      {next === undefined && !loadError ? <div className="h-44 animate-pulse rounded-[24px] bg-surface" /> : !loadError && <Card tone="strong" className="relative overflow-hidden">
         <Eyebrow>{next ? (isToday(new Date(next.date)) ? "היום" : format(new Date(next.date), "EEEE, d בMMMM", { locale: he })) : "אין אימון מתוכנן"}</Eyebrow>
         <h2 className="mt-3 text-3xl font-black leading-tight">{next ? next.title : "האימון הבא שלך."}</h2>
         <p className="mt-1 text-sm opacity-80">
@@ -71,7 +75,7 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
             </>
           )}
         </div>
-      </Card>
+      </Card>}
 
       <Card className="flex items-center gap-5">
         <Rings

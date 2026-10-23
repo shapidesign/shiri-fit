@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAllowedEmail } from "@/lib/allowlist";
 
 const PUBLIC = ["/login", "/privacy", "/terms", "/auth", "/api/reminders", "/manifest.webmanifest", "/sw.js", "/icons", "/fonts"];
 
@@ -31,15 +32,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && !isPublic) {
-    const allowed = (process.env.ALLOWED_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    if (allowed.length && !allowed.includes((user.email ?? "").toLowerCase())) {
-      await supabase.auth.signOut();
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      url.searchParams.set("error", "not_allowed");
-      return NextResponse.redirect(url);
-    }
+  if (user && !isPublic && !isAllowedEmail(user.email)) {
+    await supabase.auth.signOut();
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("error", "not_allowed");
+    return NextResponse.redirect(url);
   }
 
   if (user && pathname === "/login") {

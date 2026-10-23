@@ -70,7 +70,7 @@ create index exercises_name_idx on public.exercises (lower(name));
 alter table public.exercises enable row level security;
 create policy "read exercises" on public.exercises for select to authenticated using (true);
 create policy "own custom exercises" on public.exercises for insert to authenticated with check (created_by = auth.uid());
--- ponytail: single-user app, any logged-in user may edit the shared cache (Hebrew names). Tighten if it ever goes multi-user.
+-- Row access stays open; column grants in 20261023000004 limit writes to name_he.
 create policy "update exercises" on public.exercises for update to authenticated using (true) with check (true);
 
 -- ---------- templates ----------

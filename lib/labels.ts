@@ -33,6 +33,8 @@ export const FEELINGS: { id: Feeling; label: string; emoji: string }[] = [
   { id: "hard", label: "היה קשה", emoji: "😮‍💨" },
   { id: "exhausted", label: "גמורה", emoji: "🫠" },
 ];
+export const feelingLabel = (id: Feeling, gender: Profile["gender"]) =>
+  id === "exhausted" ? g(gender, "גמורה", "גמור") : FEELINGS.find((f) => f.id === id)?.label ?? id;
 export const BODY_STATES: { id: BodyState; label: string }[] = [
   { id: "fresh", label: "הגוף רענן" },
   { id: "tight", label: "הגוף תפוס" },

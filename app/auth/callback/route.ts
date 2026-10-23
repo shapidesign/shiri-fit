@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isAllowedEmail } from "@/lib/allowlist";
+import { rejectUser } from "@/lib/reject-user";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -9,6 +11,11 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error || !data.session) return NextResponse.redirect(`${origin}/login?error=oauth`);
+
+  if (!isAllowedEmail(data.session.user.email)) {
+    await rejectUser(() => supabase.auth.signOut(), data.session.user.id);
+    return NextResponse.redirect(`${origin}/login?error=not_allowed`);
+  }
 
   // Google only returns a refresh token on the consent screen; keep the last good one.
   const refresh = data.session.provider_refresh_token;

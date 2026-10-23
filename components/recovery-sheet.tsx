@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { db, userId } from "@/lib/db";
 import { useProfile } from "@/components/profile-provider";
-import { BODY_STATES, FEELINGS, g } from "@/lib/labels";
+import { BODY_STATES, FEELINGS, feelingLabel, g } from "@/lib/labels";
 import type { BodyState, Feeling, WorkoutLog } from "@/lib/types";
 
 type Props = { open: boolean; onClose: () => void; onSaved?: () => void; log?: WorkoutLog | null };
@@ -21,6 +21,7 @@ export function RecoverySheet({ open, onClose, onSaved, log }: Props) {
 }
 
 function Form({ log, onDone }: { log?: WorkoutLog | null; onDone: () => void }) {
+  const { profile } = useProfile();
   const [feeling, setFeeling] = useState<Feeling | null>(null);
   const [body, setBody] = useState<BodyState | null>(null);
   const [notes, setNotes] = useState("");
@@ -29,8 +30,9 @@ function Form({ log, onDone }: { log?: WorkoutLog | null; onDone: () => void }) 
   async function save() {
     if (!feeling || !body) return;
     setSaving(true);
-    await db().from("recovery_logs").insert({ user_id: await userId(), log_id: log?.id ?? null, feeling, body_state: body, notes: notes || null });
+    const { error } = await db().from("recovery_logs").insert({ user_id: await userId(), log_id: log?.id ?? null, feeling, body_state: body, notes: notes || null });
     setSaving(false);
+    if (error) return alert("השמירה נכשלה");
     onDone();
   }
 
@@ -41,7 +43,7 @@ function Form({ log, onDone }: { log?: WorkoutLog | null; onDone: () => void }) 
         <div className="grid grid-cols-2 gap-2">
           {FEELINGS.map((f) => (
             <button key={f.id} type="button" aria-pressed={feeling === f.id} onClick={() => setFeeling(f.id)} className={`flex h-16 items-center gap-3 rounded-2xl border px-4 text-start font-semibold transition-transform active:scale-95 ${feeling === f.id ? "border-accent bg-accent text-accent-ink" : "border-border bg-surface-2"}`}>
-              <span className="text-2xl" aria-hidden>{f.emoji}</span>{f.label}
+              <span className="text-2xl" aria-hidden>{f.emoji}</span>{feelingLabel(f.id, profile.gender)}
             </button>
           ))}
         </div>
