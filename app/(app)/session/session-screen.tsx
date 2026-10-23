@@ -9,11 +9,15 @@ import { ExerciseSheet } from "@/components/exercise-sheet";
 import { LogWorkoutSheet } from "@/components/log-workout-sheet";
 import { RecoverySheet } from "@/components/recovery-sheet";
 import { useProfile } from "@/components/profile-provider";
-import { db, getTemplate, quickWorkout, type TemplateWithExercises } from "@/lib/db";
+import { Mini } from "@/components/ui/field";
+import { db, exerciseKey, getTemplate, quickWorkout, setHistory, type TemplateWithExercises } from "@/lib/db";
 import { muscleLabel, vibeLabel } from "@/lib/labels";
+import { suggestWeight, type LoggedSet, type Suggestion } from "@/lib/progression";
 import type { Exercise, ExerciseDone, ScheduledWorkout, WorkoutLog } from "@/lib/types";
 
 type Props = { scheduledId: string | null; templateId: string | null; quick?: boolean };
+type Row = TemplateWithExercises["template_exercises"][number];
+const rowName = (r: Row) => (r.exercise ? r.exercise.name_he ?? r.exercise.name : r.custom_name ?? "");
 
 export function SessionScreen({ scheduledId, templateId, quick }: Props) {
   const router = useRouter();
@@ -21,7 +25,8 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
   const [scheduled, setScheduled] = useState<ScheduledWorkout | null>(null);
   const [template, setTemplate] = useState<TemplateWithExercises | null>(null);
   const [loading, setLoading] = useState(true);
-  const [done, setDone] = useState<Record<string, boolean[]>>({});
+  const [sets, setSets] = useState<Record<string, LoggedSet[]>>({});
+  const [tips, setTips] = useState<Record<string, Suggestion | null>>({});
   const [clock, setClock] = useState({ start: 0, now: 0 });
   const [paused, setPaused] = useState<number | null>(null);
   const [pausedTotal, setPausedTotal] = useState(0);
@@ -32,13 +37,30 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
   useEffect(() => {
     (async () => {
       let tid = templateId;
+      let sched: ScheduledWorkout | null = null;
       if (scheduledId) {
         const { data } = await db().from("scheduled_workouts").select("*").eq("id", scheduledId).maybeSingle();
-        setScheduled(data as ScheduledWorkout | null);
-        tid = (data as ScheduledWorkout | null)?.template_id ?? tid;
+        sched = data as ScheduledWorkout | null;
+        setScheduled(sched);
+        tid = sched?.template_id ?? tid;
       }
-      if (tid) setTemplate(await getTemplate(tid));
-      else if (quick) setTemplate(await quickWorkout(profile));
+      const t = tid ? await getTemplate(tid) : quick ? await quickWorkout(profile) : null;
+      if (t) {
+        const history = await setHistory();
+        // Push heavier only when the program is about getting stronger / toned and isn't a light day.
+        const progress = (sched?.intensity ?? t.intensity) !== "light"
+          && ((sched?.vibe ?? t.vibe) === "strength" || profile.goals.some((g) => g === "strength" || g === "tone"));
+        const nextTips: Record<string, Suggestion | null> = {};
+        const nextSets: Record<string, LoggedSet[]> = {};
+        for (const r of t.template_exercises) {
+          const tip = suggestWeight(history.get(exerciseKey({ exercise_id: r.exercise?.id, name: rowName(r) })) ?? [], r.reps, progress, r.exercise?.category ?? null);
+          nextTips[r.id] = tip;
+          nextSets[r.id] = Array.from({ length: r.sets ?? 1 }, () => ({ reps: r.reps ?? undefined, weight_kg: tip?.kg ?? r.weight_kg ?? undefined, done: false }));
+        }
+        setTips(nextTips);
+        setSets(nextSets);
+      }
+      setTemplate(t);
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- build the quick workout once, not on profile edits
@@ -56,14 +78,31 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
 
   const rows = useMemo(() => template?.template_exercises ?? [], [template]);
   const total = rows.reduce((n, r) => n + (r.sets ?? 1), 0);
-  const ticked = Object.values(done).flat().filter(Boolean).length;
+  const ticked = Object.values(sets).flat().filter((s) => s.done).length;
 
   const exercisesDone: ExerciseDone[] = useMemo(() => rows.map((r) => ({
-    name: r.exercise ? r.exercise.name_he ?? r.exercise.name : r.custom_name ?? "",
+    name: rowName(r),
     exercise_id: r.exercise?.id ?? null,
     duration_sec: r.duration_sec ?? undefined,
-    sets: Array.from({ length: r.sets ?? 1 }, (_, i) => ({ reps: r.reps ?? undefined, weight_kg: r.weight_kg ?? undefined, done: !!done[r.id]?.[i] })),
-  })), [rows, done]);
+    sets: sets[r.id] ?? [],
+  })), [rows, sets]);
+
+  // A weight change carries forward to the sets not done yet.
+  const edit = (id: string, i: number, patch: Partial<LoggedSet>) => setSets((d) => ({
+    ...d,
+    [id]: d[id].map((s, j) => (j === i || ("weight_kg" in patch && j > i && !s.done) ? { ...s, ...patch } : s)),
+  }));
+  const tick = (id: string, i: number, on: boolean) => (
+    <button
+      type="button"
+      aria-pressed={on}
+      aria-label={`סט ${i + 1}`}
+      onClick={() => edit(id, i, { done: !on })}
+      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border text-sm font-bold transition-transform active:scale-90 ${on ? "border-accent bg-accent text-accent-ink" : "border-border bg-surface-2"}`}
+    >
+      {on ? <Check className="h-5 w-5" /> : i + 1}
+    </button>
+  );
 
   const title = scheduled?.title ?? template?.name ?? "אימון";
   const vibe = scheduled?.vibe ?? template?.vibe ?? "strength";
@@ -99,9 +138,11 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
       ) : (
         <ul className="mt-4 space-y-3">
           {rows.map((r) => {
-            const sets = r.sets ?? 1;
-            const name = r.exercise ? r.exercise.name_he ?? r.exercise.name : r.custom_name;
-            const allDone = (done[r.id] ?? []).filter(Boolean).length === sets;
+            const rowSets = sets[r.id] ?? [];
+            const name = rowName(r);
+            const allDone = rowSets.length > 0 && rowSets.every((s) => s.done);
+            const timed = !r.reps && !!r.duration_sec;
+            const tip = tips[r.id];
             return (
               <li key={r.id} className={`rounded-[24px] p-4 transition-colors ${allDone ? "bg-accent-soft" : "bg-surface"}`}>
                 <div className="flex items-center gap-3">
@@ -114,29 +155,25 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
                   <button type="button" onClick={() => r.exercise && setDetail(r.exercise)} className="min-w-0 flex-1 text-start">
                     <p className="truncate text-lg font-bold">{name}</p>
                     <p className="text-xs text-muted">
-                      {r.reps ? `${sets} × ${r.reps} חזרות` : r.duration_sec ? `${sets} × ${r.duration_sec} שנ׳` : `${sets} סטים`}
-                      {r.weight_kg ? ` · ${r.weight_kg} ק״ג` : ""}
+                      {r.reps ? `${rowSets.length} × ${r.reps} חזרות` : r.duration_sec ? `${rowSets.length} × ${r.duration_sec} שנ׳` : `${rowSets.length} סטים`}
                       {r.exercise && ` · ${r.exercise.muscles.map(muscleLabel).join(", ")}`}
                     </p>
+                    {tip && <p className="mt-1 text-xs font-semibold">המלצה: {tip.kg} ק״ג · <span className="font-normal text-muted">{tip.why}</span></p>}
                   </button>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {Array.from({ length: sets }, (_, i) => {
-                    const on = !!done[r.id]?.[i];
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        aria-pressed={on}
-                        aria-label={`סט ${i + 1}`}
-                        onClick={() => setDone((d) => { const arr = [...(d[r.id] ?? Array(sets).fill(false))]; arr[i] = !arr[i]; return { ...d, [r.id]: arr }; })}
-                        className={`grid h-11 w-11 place-items-center rounded-full border text-sm font-bold transition-transform active:scale-90 ${on ? "border-accent bg-accent text-accent-ink" : "border-border bg-surface-2"}`}
-                      >
-                        {on ? <Check className="h-5 w-5" /> : i + 1}
-                      </button>
-                    );
-                  })}
-                </div>
+                {timed ? (
+                  <div className="mt-3 flex flex-wrap gap-2">{rowSets.map((s, i) => <span key={i}>{tick(r.id, i, s.done)}</span>)}</div>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {rowSets.map((s, i) => (
+                      <li key={i} className="flex items-end gap-2">
+                        {tick(r.id, i, s.done)}
+                        <div className="flex-1"><Mini label="חזרות" value={s.reps ?? null} onChange={(v) => edit(r.id, i, { reps: v ?? undefined })} /></div>
+                        <div className="flex-1"><Mini label="ק״ג" step="0.5" placeholder="—" value={s.weight_kg ?? null} onChange={(v) => edit(r.id, i, { weight_kg: v ?? undefined })} /></div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             );
           })}

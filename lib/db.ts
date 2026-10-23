@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import type { LoggedSet } from "@/lib/progression";
 import type { Exercise, Profile, ScheduledWorkout, TemplateExercise, Vibe, WorkoutLog, WorkoutTemplate } from "@/lib/types";
 
 export const db = () => createClient();
@@ -44,6 +45,17 @@ export async function scheduleBetween(from: string, to: string): Promise<Schedul
 export async function logsBetween(fromIso: string, toIso: string): Promise<WorkoutLog[]> {
   const { data } = await db().from("workout_logs").select("*").gte("performed_at", fromIso).lte("performed_at", toIso).order("performed_at", { ascending: false });
   return (data ?? []) as WorkoutLog[];
+}
+
+export const exerciseKey = (e: { exercise_id?: number | null; name: string }) => String(e.exercise_id ?? e.name);
+
+/** Logged sets per exercise (see exerciseKey), newest session first. */
+export async function setHistory(): Promise<Map<string, LoggedSet[][]>> {
+  // ponytail: last 60 logs scanned client-side; move to a jsonb query if history needs to go deeper.
+  const { data } = await db().from("workout_logs").select("exercises_done").order("performed_at", { ascending: false }).limit(60);
+  const m = new Map<string, LoggedSet[][]>();
+  for (const l of data ?? []) for (const e of l.exercises_done) if (e.sets?.length) m.set(exerciseKey(e), [...(m.get(exerciseKey(e)) ?? []), e.sets]);
+  return m;
 }
 
 const QUICK_VIBES: Vibe[] = ["strength", "pilates", "yoga", "hiit", "stretch"];

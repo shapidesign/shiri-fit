@@ -16,6 +16,15 @@ export function Field({ label, hint, suffix, id, className = "", ...rest }: Prop
   );
 }
 
+export function Mini({ label, value, onChange, step, placeholder }: { label: string; value: number | null; onChange: (v: number | null) => void; step?: string; placeholder?: string }) {
+  return (
+    <label className="block">
+      <span className="block text-[11px] font-semibold text-muted">{label}</span>
+      <input type="number" inputMode="decimal" step={step} placeholder={placeholder} value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} className="h-10 w-full rounded-xl border border-border bg-surface-2 px-2 text-center font-semibold tabular-nums outline-none placeholder:text-muted" />
+    </label>
+  );
+}
+
 /** Numeric stepper: big tap targets, no tiny spinners. */
 export function Stepper({ label, value, onChange, min = 0, max = 99, step = 1, suffix }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; suffix?: string;

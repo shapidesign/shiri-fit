@@ -160,7 +160,8 @@ export function ProgressScreen() {
                 {detail.exercises_done.map((e, i) => (
                   <li key={i} className="flex items-center justify-between rounded-xl bg-surface px-3 py-2 text-sm">
                     <span className="font-semibold">{e.name}</span>
-                    <span className="tabular-nums text-muted">{e.sets ? `${e.sets.filter((s) => s.done).length}/${e.sets.length} סטים` : e.duration_sec ? `${e.duration_sec} שנ׳` : ""}</span>
+                    <span className="tabular-nums text-muted">{e.sets ? `${e.sets.filter((s) => s.done).length}/${e.sets.length} סטים` : e.duration_sec ? `${e.duration_sec} שנ׳` : ""}
+                      {e.sets?.some((s) => s.weight_kg) && ` · ${e.sets.filter((s) => s.done && s.weight_kg).map((s) => `${s.reps ?? "?"}×${s.weight_kg}`).join(", ") || "—"} ק״ג`}</span>
                   </li>
                 ))}
               </ul>
