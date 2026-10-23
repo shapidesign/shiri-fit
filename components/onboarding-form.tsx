@@ -6,17 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, Stepper } from "@/components/ui/field";
 import { EQUIPMENT, GOALS, VIBES } from "@/lib/labels";
-import { createClient } from "@/lib/supabase/client";
+import { CalendarCheck } from "lucide-react";
+import { createClient, signInWithGoogle } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
 
-type Props = { profile: Profile; mode: "onboarding" | "edit"; onSaved?: (p: Profile) => void };
+type Props = { profile: Profile; mode: "onboarding" | "edit"; calendarConnected?: boolean; onSaved?: (p: Profile) => void };
 
 const toggle = (arr: string[], v: string) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
-export function OnboardingForm({ profile, mode, onSaved }: Props) {
+export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [calendarSync, setCalendarSync] = useState(profile.calendar_sync);
   const [error, setError] = useState<string | null>(null);
   const [p, setP] = useState({
     display_name: profile.display_name ?? "",
@@ -32,7 +35,34 @@ export function OnboardingForm({ profile, mode, onSaved }: Props) {
   });
   const set = <K extends keyof typeof p>(k: K, v: (typeof p)[K]) => setP((s) => ({ ...s, [k]: v }));
 
+  const calendarStep = {
+    title: "מחברים את היומן",
+    sub: "אימונים שתשבצי ייכנסו ליומן Google עם תזכורת, ואימונים ספונטניים יירשמו בו אחורה.",
+    body: (
+      <div className="space-y-4">
+        {calendarConnected ? (
+          <p className="flex items-center gap-2 rounded-2xl bg-accent/15 px-4 py-3 font-semibold">
+            <CalendarCheck className="h-5 w-5" aria-hidden /> היומן מחובר
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted">עוד אין לנו גישה ליומן. צריך לאשר אותה במסך של Google.</p>
+            <Button variant="secondary" loading={connecting} onClick={() => { setConnecting(true); void signInWithGoogle(); }}>
+              חיבור ליומן Google
+            </Button>
+          </div>
+        )}
+        <label className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3">
+          <span className="font-semibold">סנכרון אימונים ליומן</span>
+          <input type="checkbox" checked={calendarSync} onChange={(e) => setCalendarSync(e.target.checked)} className="h-6 w-6 accent-[var(--accent)]" />
+        </label>
+      </div>
+    ),
+    valid: true,
+  };
+
   const steps = [
+    ...(mode === "onboarding" ? [calendarStep] : []),
     {
       title: "קצת עלייך",
       sub: "המשקל משמש רק לחישוב קלוריות. הכול נשאר אצלך.",
@@ -65,7 +95,10 @@ export function OnboardingForm({ profile, mode, onSaved }: Props) {
       sub: "אפשר לשנות בכל רגע.",
       body: (
         <div className="space-y-5">
-          <Stepper label="אימונים בשבוע" value={p.days_per_week} onChange={(v) => set("days_per_week", v)} min={1} max={7} />
+          <div>
+            <Stepper label="יעד אימונים בשבוע" value={p.days_per_week} onChange={(v) => set("days_per_week", v)} min={1} max={7} suffix={p.days_per_week === 1 ? "אימון" : "אימונים"} />
+            <p className="mt-1.5 text-xs text-muted">כל אימון בערך שעה.</p>
+          </div>
           <div>
             <p className="mb-2 text-sm font-semibold">מטרות</p>
             <ChipRow>
@@ -80,7 +113,7 @@ export function OnboardingForm({ profile, mode, onSaved }: Props) {
     },
     {
       title: "מה את אוהבת?",
-      sub: "סוגי האימון שנשים קדימה. היעדים השבועיים מוצעים לפי זה.",
+      sub: "סוגי האימון שנשים קדימה. יעד דקות הוא אופציונלי.",
       body: (
         <div className="space-y-5">
           <ChipRow>
@@ -88,7 +121,14 @@ export function OnboardingForm({ profile, mode, onSaved }: Props) {
               <Chip key={v.id} selected={p.vibes.includes(v.id)} onClick={() => set("vibes", toggle(p.vibes, v.id))}>{v.label}</Chip>
             ))}
           </ChipRow>
-          <Stepper label="יעד דקות בשבוע" value={p.weekly_minutes_goal} onChange={(v) => set("weekly_minutes_goal", v)} min={30} max={900} step={15} suffix="דק׳" />
+          {p.weekly_minutes_goal == null ? (
+            <Button variant="secondary" size="sm" onClick={() => set("weekly_minutes_goal", p.days_per_week * 60)}>+ להוסיף יעד דקות</Button>
+          ) : (
+            <div>
+              <Stepper label="יעד דקות בשבוע" value={p.weekly_minutes_goal} onChange={(v) => set("weekly_minutes_goal", v)} min={30} max={900} step={15} suffix="דק׳" />
+              <button type="button" onClick={() => set("weekly_minutes_goal", null)} className="mt-1.5 text-xs font-semibold text-muted underline">בלי יעד דקות</button>
+            </div>
+          )}
           <Stepper label="יעד קלוריות בשבוע" value={p.weekly_kcal_goal} onChange={(v) => set("weekly_kcal_goal", v)} min={200} max={6000} step={100} suffix="קק״ל" />
         </div>
       ),
@@ -104,7 +144,7 @@ export function OnboardingForm({ profile, mode, onSaved }: Props) {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("profiles")
-      .update({ ...p, onboarding_done: true })
+      .update({ ...p, ...(mode === "onboarding" && { calendar_sync: calendarSync }), onboarding_done: true })
       .eq("id", profile.id)
       .select("*")
       .single();
@@ -118,7 +158,7 @@ export function OnboardingForm({ profile, mode, onSaved }: Props) {
   }
 
   return (
-    <div className="flex min-h-[80dvh] flex-col">
+    <div className="flex flex-1 flex-col">
       <div className="mb-6 flex gap-1.5" aria-label={`שלב ${step + 1} מתוך ${steps.length}`}>
         {steps.map((_, i) => (
           <span key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-accent" : "bg-border"}`} />

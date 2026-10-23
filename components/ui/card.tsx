@@ -18,5 +18,5 @@ export function SectionTitle({ children, className = "" }: { children: React.Rea
 }
 
 export function Eyebrow({ children }: { children: React.ReactNode }) {
-  return <span className="inline-block rounded-full bg-bg/70 px-3 py-1 text-xs font-semibold text-muted">{children}</span>;
+  return <span className="inline-block rounded-full bg-on-strong/10 px-3 py-1 text-xs font-semibold text-on-strong/80">{children}</span>;
 }

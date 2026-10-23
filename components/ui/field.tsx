@@ -26,7 +26,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 99, step = 1, s
       <span className="text-sm font-semibold">{label}</span>
       <div className="flex items-center gap-2">
         <button type="button" aria-label={`פחות ${label}`} onClick={() => onChange(clamp(value - step))} className="grid h-10 w-10 place-items-center rounded-full bg-surface text-xl font-bold active:scale-95">−</button>
-        <span className="min-w-12 text-center text-lg font-bold tabular-nums">{value}{suffix && <span className="ms-1 text-xs text-muted">{suffix}</span>}</span>
+        <span className="min-w-24 text-center text-lg font-bold tabular-nums">{value}{suffix && <span className="ms-1 text-xs text-muted">{suffix}</span>}</span>
         <button type="button" aria-label={`יותר ${label}`} onClick={() => onChange(clamp(value + step))} className="grid h-10 w-10 place-items-center rounded-full bg-surface text-xl font-bold active:scale-95">+</button>
       </div>
     </div>

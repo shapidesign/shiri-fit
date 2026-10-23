@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { signInWithGoogle } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
 function LoginInner() {
@@ -12,23 +12,14 @@ function LoginInner() {
 
   async function signIn() {
     setLoading(true);
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${location.origin}/auth/callback`,
-        scopes: "https://www.googleapis.com/auth/calendar.events",
-        queryParams: { access_type: "offline", prompt: "consent" },
-      },
-    });
+    await signInWithGoogle();
   }
 
   return (
     <main className="flex min-h-dvh flex-col justify-between px-6 pb-10 pt-20">
       <div>
-        <div className="mb-8 h-14 w-14 rounded-2xl bg-surface-strong p-3">
-          <div className="h-full w-full rounded-full border-[5px] border-accent" />
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimization needed */}
+        <img src="/icons/icon.svg" alt="" width={72} height={72} className="mb-8 h-18 w-18" />
         <h1 className="text-5xl font-black leading-tight">Shiri Fit</h1>
         <p className="mt-3 text-lg text-muted">האימונים שלך, במקום אחד. בלי רעש.</p>
       </div>

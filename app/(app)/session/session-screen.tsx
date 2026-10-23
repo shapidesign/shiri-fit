@@ -8,14 +8,16 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ExerciseSheet } from "@/components/exercise-sheet";
 import { LogWorkoutSheet } from "@/components/log-workout-sheet";
 import { RecoverySheet } from "@/components/recovery-sheet";
-import { db, getTemplate, type TemplateWithExercises } from "@/lib/db";
+import { useProfile } from "@/components/profile-provider";
+import { db, getTemplate, quickWorkout, type TemplateWithExercises } from "@/lib/db";
 import { muscleLabel, vibeLabel } from "@/lib/labels";
 import type { Exercise, ExerciseDone, ScheduledWorkout, WorkoutLog } from "@/lib/types";
 
-type Props = { scheduledId: string | null; templateId: string | null };
+type Props = { scheduledId: string | null; templateId: string | null; quick?: boolean };
 
-export function SessionScreen({ scheduledId, templateId }: Props) {
+export function SessionScreen({ scheduledId, templateId, quick }: Props) {
   const router = useRouter();
+  const { profile } = useProfile();
   const [scheduled, setScheduled] = useState<ScheduledWorkout | null>(null);
   const [template, setTemplate] = useState<TemplateWithExercises | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,9 +38,11 @@ export function SessionScreen({ scheduledId, templateId }: Props) {
         tid = (data as ScheduledWorkout | null)?.template_id ?? tid;
       }
       if (tid) setTemplate(await getTemplate(tid));
+      else if (quick) setTemplate(await quickWorkout(profile));
       setLoading(false);
     })();
-  }, [scheduledId, templateId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- build the quick workout once, not on profile edits
+  }, [scheduledId, templateId, quick]);
 
   useEffect(() => {
     const tick = () => setClock((c) => ({ start: c.start || Date.now(), now: Date.now() }));
@@ -139,7 +143,7 @@ export function SessionScreen({ scheduledId, templateId }: Props) {
         </ul>
       )}
 
-      <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-lg px-4">
+      <div className="fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-lg px-4">
         <Button size="lg" className="w-full shadow-lg" onClick={() => setFinishing(true)}>סיום אימון</Button>
       </div>
 
@@ -147,7 +151,7 @@ export function SessionScreen({ scheduledId, templateId }: Props) {
         open={finishing}
         onClose={() => setFinishing(false)}
         scheduled={scheduled}
-        session={{ title, vibe, intensity, minutes, exercises: exercisesDone, templateId: template?.id ?? null }}
+        session={{ title, vibe, intensity, minutes, exercises: exercisesDone, templateId: template?.id || null }}
         onSaved={(log) => setSavedLog(log)}
       />
       <RecoverySheet open={!!savedLog} log={savedLog} onClose={() => { setSavedLog(null); router.replace("/"); router.refresh(); }} />

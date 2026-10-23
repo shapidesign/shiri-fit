@@ -16,10 +16,10 @@ export function Chip({ selected, onClick, children, className = "" }: Props) {
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-[transform,background-color,border-color] duration-150 active:scale-95 ${
+      className={`inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border text-sm font-semibold transition-[transform,background-color,border-color] duration-150 active:scale-95 ${
         selected
-          ? "border-accent bg-accent text-accent-ink"
-          : "border-border bg-surface-2 text-ink"
+          ? "border-accent bg-accent px-4 text-accent-ink"
+          : "border-border bg-surface-2 px-[27px] text-ink" /* 16px + half of check (16) + gap (6): same width either way, so rows don't reflow */
       } ${className}`}
     >
       {selected && <Check className="h-4 w-4" aria-hidden />}

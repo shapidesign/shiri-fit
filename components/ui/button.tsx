@@ -10,7 +10,7 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants = {
-  primary: "bg-accent text-accent-ink",
+  primary: "bg-accent text-accent-ink disabled:not-aria-busy:bg-border disabled:not-aria-busy:text-muted disabled:not-aria-busy:opacity-100",
   strong: "bg-surface-strong text-on-strong",
   secondary: "bg-surface-2 text-ink border border-border",
   ghost: "bg-transparent text-ink",
@@ -23,6 +23,7 @@ export function Button({ variant = "primary", size = "md", loading, className = 
     <button
       {...rest}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       className={`inline-flex items-center justify-center gap-2 rounded-2xl font-semibold transition-[transform,opacity] duration-150 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 ${variants[variant]} ${sizes[size]} ${className}`}
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}

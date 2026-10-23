@@ -9,11 +9,11 @@ export const VIBES: { id: Vibe; label: string }[] = [
   { id: "walk", label: "הליכה" },
   { id: "run", label: "ריצה" },
   { id: "cycle", label: "אופניים" },
-  { id: "swim", label: "שחייה" },
   { id: "stretch", label: "מתיחות" },
   { id: "other", label: "אחר" },
 ];
-export const vibeLabel = (v: string) => VIBES.find((x) => x.id === v)?.label ?? v;
+// "swim" is no longer offered but may exist on old rows.
+export const vibeLabel = (v: string) => VIBES.find((x) => x.id === v)?.label ?? (v === "swim" ? "שחייה" : v);
 
 export const INTENSITIES: { id: Intensity; label: string }[] = [
   { id: "light", label: "קל" },
@@ -53,6 +53,9 @@ export const MUSCLES: { id: string; label: string }[] = [
   { id: "quads", label: "ירך קדמית" },
   { id: "hamstrings", label: "ירך אחורית" },
   { id: "calves", label: "שוקיים" },
+  { id: "adductors", label: "מקרבים" },
+  { id: "abductors", label: "מרחיקים" },
+  { id: "neck", label: "צוואר" },
   { id: "full body", label: "כל הגוף" },
 ];
 export const muscleLabel = (m: string) => MUSCLES.find((x) => x.id === m.toLowerCase())?.label ?? m;
@@ -68,8 +71,10 @@ export const EQUIPMENT: { id: string; label: string }[] = [
   { id: "mat", label: "מזרן" },
   { id: "trx", label: "TRX" },
   { id: "pilates reformer", label: "רפורמר" },
+  { id: "exercise ball", label: "כדור פיזיו" },
+  { id: "medicine ball", label: "כדור כוח" },
 ];
-export const equipmentLabel = (e: string) => EQUIPMENT.find((x) => x.id === e)?.label ?? e;
+export const equipmentLabel = (e: string) => EQUIPMENT.find((x) => x.id === e)?.label ?? (e === "other" ? "ציוד אחר" : e);
 
 export const GOALS: { id: string; label: string }[] = [
   { id: "strength", label: "להתחזק" },

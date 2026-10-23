@@ -78,14 +78,14 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
           size={128}
           rings={[
             { value: workouts / Math.max(1, profile.days_per_week), color: "var(--ring-1)", label: "אימונים" },
-            { value: minutes / Math.max(1, profile.weekly_minutes_goal), color: "var(--ring-2)", label: "דקות" },
+            ...(profile.weekly_minutes_goal ? [{ value: minutes / profile.weekly_minutes_goal, color: "var(--ring-2)", label: "דקות" }] : []),
             { value: kcal / Math.max(1, profile.weekly_kcal_goal), color: "var(--ring-3)", label: "קלוריות" },
           ]}
         />
         <div className="flex-1 space-y-2">
           <p className="text-sm font-semibold text-muted">השבוע שלך</p>
           <Stat color="var(--ring-1)" label="אימונים" value={`${workouts}/${profile.days_per_week}`} />
-          <Stat color="var(--ring-2)" label="דקות" value={`${minutes}/${profile.weekly_minutes_goal}`} />
+          {profile.weekly_minutes_goal ? <Stat color="var(--ring-2)" label="דקות" value={`${minutes}/${profile.weekly_minutes_goal}`} /> : null}
           <Stat color="var(--ring-3)" label="קק״ל" value={`${kcal}/${profile.weekly_kcal_goal}`} />
         </div>
       </Card>
@@ -94,7 +94,7 @@ export function HomeScreen({ openRecovery = false }: { openRecovery?: boolean })
         <button type="button" onClick={() => setRecovery(true)} className="rounded-[24px] bg-accent-soft p-5 text-start transition-transform active:scale-[0.98]">
           <HeartPulse className="mb-6 h-6 w-6" aria-hidden />
           <p className="text-lg font-bold leading-tight">איך הרגשת?</p>
-          <p className="text-xs text-muted">תיעוד recovery אחרי אימון</p>
+          <p className="text-xs text-muted">תיעוד התאוששות אחרי אימון</p>
         </button>
         <button type="button" onClick={() => setLogging(true)} className="rounded-[24px] bg-surface p-5 text-start transition-transform active:scale-[0.98]">
           <Plus className="mb-6 h-6 w-6" aria-hidden />

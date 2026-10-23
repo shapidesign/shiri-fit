@@ -40,7 +40,7 @@ function Form({ scheduled, session, onSaved }: { scheduled?: ScheduledWorkout | 
   const [title, setTitle] = useState(src?.title ?? "");
   const [vibe, setVibe] = useState<Vibe>(src?.vibe ?? (profile.vibes[0] as Vibe) ?? "strength");
   const [intensity, setIntensity] = useState<Intensity>(src?.intensity ?? "moderate");
-  const [minutes, setMinutes] = useState(session?.minutes ?? scheduled?.duration_min ?? 45);
+  const [minutes, setMinutes] = useState(session?.minutes ?? scheduled?.duration_min ?? 60);
   const [when, setWhen] = useState(() => {
     const planned = scheduled ? new Date(`${scheduled.date}T${scheduled.time?.slice(0, 5) ?? "08:00"}`) : null;
     return format(planned && planned < new Date() ? planned : new Date(), "yyyy-MM-dd'T'HH:mm");

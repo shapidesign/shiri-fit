@@ -32,7 +32,7 @@ export default function ProfilePage() {
   if (editing) {
     return (
       <main>
-        <PageHeader title="עריכת פרופיל" back="/profile" />
+        <PageHeader title="עריכת פרופיל" action={<Button size="sm" variant="secondary" onClick={() => setEditing(false)}>ביטול</Button>} />
         <OnboardingForm profile={profile} mode="edit" onSaved={(p) => { setProfile(p); setEditing(false); }} />
       </main>
     );
@@ -52,6 +52,7 @@ export default function ProfilePage() {
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <dt className="text-muted">משקל</dt><dd className="font-semibold">{profile.weight_kg ?? "—"} ק״ג</dd>
           <dt className="text-muted">אימונים בשבוע</dt><dd className="font-semibold">{profile.days_per_week}</dd>
+          {profile.weekly_minutes_goal && <><dt className="text-muted">יעד דקות</dt><dd className="font-semibold">{profile.weekly_minutes_goal} דק׳</dd></>}
           <dt className="text-muted">ציוד</dt><dd className="font-semibold">{label(EQUIPMENT, profile.equipment)}</dd>
           <dt className="text-muted">מטרות</dt><dd className="font-semibold">{label(GOALS, profile.goals)}</dd>
           <dt className="text-muted">אוהבת</dt><dd className="font-semibold">{label(VIBES, profile.vibes)}</dd>

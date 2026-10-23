@@ -41,7 +41,7 @@ function Form({ date, existing, templates, onDone }: Omit<Props, "open" | "onClo
   const [intensity, setIntensity] = useState<Intensity>(existing?.intensity ?? first?.intensity ?? "moderate");
   const [day, setDay] = useState(existing?.date ?? date);
   const [time, setTime] = useState(existing?.time?.slice(0, 5) ?? "08:00");
-  const [duration, setDuration] = useState(existing?.duration_min ?? first?.est_minutes ?? 45);
+  const [duration, setDuration] = useState(existing?.duration_min ?? first?.est_minutes ?? 60);
   const [weeks, setWeeks] = useState(1);
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const [saving, setSaving] = useState(false);
@@ -118,7 +118,7 @@ function Form({ date, existing, templates, onDone }: Omit<Props, "open" | "onClo
       </div>
       <Stepper label="משך" value={duration} onChange={setDuration} min={10} max={240} step={5} suffix="דק׳" />
       <IntensityPicker value={intensity} onChange={setIntensity} />
-      {!existing && <Stepper label="לחזור כל שבוע ×" value={weeks} onChange={setWeeks} min={1} max={12} suffix="שבועות" />}
+      {!existing && <Stepper label="לשבץ לכמה שבועות" value={weeks} onChange={setWeeks} min={1} max={12} suffix={weeks === 1 ? "שבוע" : "שבועות"} />}
       <label className="block">
         <span className="mb-1.5 block text-sm font-semibold">הערות</span>
         <input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-12 w-full rounded-2xl border border-border bg-surface-2 px-4 outline-none" />

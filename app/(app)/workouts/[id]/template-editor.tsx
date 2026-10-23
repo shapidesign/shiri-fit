@@ -35,7 +35,7 @@ export function TemplateEditor({ id }: { id: string }) {
   const [name, setName] = useState("");
   const [vibe, setVibe] = useState<Vibe>("strength");
   const [intensity, setIntensity] = useState<Intensity>("moderate");
-  const [minutes, setMinutes] = useState(45);
+  const [minutes, setMinutes] = useState(60);
   const [muscleGroups, setMuscleGroups] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
@@ -166,8 +166,8 @@ export function TemplateEditor({ id }: { id: string }) {
         </label>
       </div>
 
-      <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-lg gap-2 px-4">
-        {!isNew && <Button variant="danger" onClick={remove} aria-label="מחיקת תבנית"><Trash2 className="h-5 w-5" /></Button>}
+      <div className="fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-lg gap-2 px-4">
+        {!isNew && <div className="rounded-2xl bg-bg shadow-lg"><Button variant="danger" size="lg" onClick={remove} aria-label="מחיקת תבנית"><Trash2 className="h-5 w-5" /></Button></div>}
         <Button size="lg" className="flex-1 shadow-lg" loading={saving} disabled={!name.trim()} onClick={save}>שמירה</Button>
       </div>
 

@@ -98,13 +98,13 @@ export function ProgressScreen() {
               size={150}
               rings={[
                 { value: workouts / (profile.days_per_week * weeks), color: "var(--ring-1)", label: "אימונים" },
-                { value: minutes / (profile.weekly_minutes_goal * weeks), color: "var(--ring-2)", label: "דקות" },
+                ...(profile.weekly_minutes_goal ? [{ value: minutes / (profile.weekly_minutes_goal * weeks), color: "var(--ring-2)", label: "דקות" }] : []),
                 { value: kcal / (profile.weekly_kcal_goal * weeks), color: "var(--ring-3)", label: "קלוריות" },
               ]}
             />
             <div className="flex-1 space-y-3">
               <Big color="var(--ring-1)" label="אימונים" value={workouts} target={profile.days_per_week * weeks} />
-              <Big color="var(--ring-2)" label="דקות" value={minutes} target={profile.weekly_minutes_goal * weeks} />
+              {profile.weekly_minutes_goal ? <Big color="var(--ring-2)" label="דקות" value={minutes} target={profile.weekly_minutes_goal * weeks} /> : null}
               <Big color="var(--ring-3)" label="קק״ל" value={kcal} target={profile.weekly_kcal_goal * weeks} />
             </div>
           </Card>

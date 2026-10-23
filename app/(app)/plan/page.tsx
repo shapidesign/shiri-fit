@@ -67,12 +67,12 @@ export default function PlanPage() {
                 onClick={() => { setSelected(d); if (!isSameMonth(d, month)) setMonth(startOfMonth(d)); }}
                 aria-label={format(d, "d בMMMM", { locale: he })}
                 aria-pressed={sel}
-                className={`flex h-12 flex-col items-center justify-center rounded-2xl text-sm font-semibold transition-colors ${sel ? "bg-surface-strong text-on-strong" : isToday(d) ? "bg-accent text-accent-ink" : isSameMonth(d, month) ? "" : "text-muted/50"}`}
+                className={`flex h-12 flex-col items-center justify-center rounded-2xl text-sm font-semibold transition-colors ${sel ? "bg-accent text-accent-ink" : isToday(d) ? "ring-2 ring-inset ring-accent" : isSameMonth(d, month) ? "" : "text-muted/50"}`}
               >
                 <span className="tabular-nums">{format(d, "d")}</span>
                 <span className="mt-0.5 flex h-1.5 gap-0.5">
                   {list.slice(0, 3).map((w) => (
-                    <span key={w.id} className={`h-1.5 w-1.5 rounded-full ${w.status === "done" ? "bg-success" : w.status === "skipped" ? "bg-muted/40" : sel ? "bg-accent" : "bg-ink"}`} />
+                    <span key={w.id} className={`h-1.5 w-1.5 rounded-full ${w.status === "done" ? "bg-success" : w.status === "skipped" ? "bg-muted/40" : "bg-current"}`} />
                   ))}
                 </span>
               </button>

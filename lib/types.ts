@@ -18,7 +18,7 @@ export type Profile = {
   days_per_week: number;
   goals: string[];
   vibes: string[];
-  weekly_minutes_goal: number;
+  weekly_minutes_goal: number | null;
   weekly_kcal_goal: number;
   reminder_minutes_before: number;
   calendar_sync: boolean;
