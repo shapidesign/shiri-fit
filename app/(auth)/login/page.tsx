@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { signInWithGoogle } from "@/lib/supabase/client";
@@ -34,6 +35,11 @@ function LoginInner() {
           כניסה עם Google
         </Button>
         <p className="text-center text-sm text-muted">נבקש גישה ליומן כדי לשבץ אימונים.</p>
+        <p className="text-center text-sm text-muted">
+          <Link href="/privacy" className="underline">מדיניות פרטיות</Link>
+          {" · "}
+          <Link href="/terms" className="underline">תנאי שימוש</Link>
+        </p>
       </div>
     </main>
   );
