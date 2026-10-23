@@ -27,5 +27,6 @@ begin
     timeout_milliseconds := 8000
   );
 end $$;
+revoke execute on function public.reminders_tick() from public, anon, authenticated;
 
 select cron.schedule('shiri-fit-reminders', '*/5 * * * *', $$select public.reminders_tick()$$);
