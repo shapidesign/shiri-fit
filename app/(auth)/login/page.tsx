@@ -19,7 +19,7 @@ function LoginInner() {
     <main className="flex min-h-dvh flex-col justify-between px-6 pb-10 pt-20">
       <div>
         {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimization needed */}
-        <img src="/icons/icon.svg" alt="" width={72} height={72} className="mb-8 h-18 w-18" />
+        <img src="/icons/icon.svg?v=2" alt="" width={72} height={72} className="mb-8 h-18 w-18" />
         <h1 className="text-5xl font-black leading-tight">Shiri Fit</h1>
         <p className="mt-3 text-lg text-muted">האימונים שלך, במקום אחד. בלי רעש.</p>
       </div>

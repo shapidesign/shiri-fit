@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   description: "האימונים של שירי",
   applicationName: "Shiri Fit",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Shiri Fit" },
-  icons: { apple: "/icons/apple-touch-icon.png", icon: "/icons/icon.svg" },
+  icons: { apple: "/icons/apple-touch-icon.png?v=2", icon: "/icons/icon.svg?v=2" },
 };
 
 export const viewport: Viewport = {

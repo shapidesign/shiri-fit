@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
-import { Field, Stepper } from "@/components/ui/field";
+import { Field, Mini, Stepper } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
 import { Sheet } from "@/components/ui/sheet";
 import { ExerciseLibrary } from "@/components/exercise-library";
@@ -176,14 +176,5 @@ export function TemplateEditor({ id }: { id: string }) {
       </Sheet>
       <ExerciseSheet exercise={detail} onClose={() => setDetail(null)} onRename={(e) => { setDetail(e); setRows((r) => r.map((x) => (x.exercise?.id === e.id ? { ...x, exercise: e } : x))); }} />
     </main>
-  );
-}
-
-function Mini({ label, value, onChange, step }: { label: string; value: number | null; onChange: (v: number | null) => void; step?: string }) {
-  return (
-    <label className="block">
-      <span className="block text-[11px] font-semibold text-muted">{label}</span>
-      <input type="number" inputMode="decimal" step={step} value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} className="h-10 w-full rounded-xl border border-border bg-surface-2 px-2 text-center font-semibold tabular-nums outline-none" />
-    </label>
   );
 }
