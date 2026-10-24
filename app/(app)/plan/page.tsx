@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ScheduleSheet } from "@/components/schedule-sheet";
 import { NewWorkoutSheet } from "@/components/new-workout-sheet";
 import { Card } from "@/components/ui/card";
+import { Sheet } from "@/components/ui/sheet";
 import { LogWorkoutSheet } from "@/components/log-workout-sheet";
 import { activePlan, db, scheduleBetween } from "@/lib/db";
 import { DAY_NAMES, GOALS, TONE_LEGEND, intensityLabel, statusTone, vibeLabel } from "@/lib/labels";
@@ -25,6 +26,8 @@ export default function PlanPage() {
   const [adding, setAdding] = useState(false);
   const [sheet, setSheet] = useState<{ open: boolean; existing: ScheduledWorkout | null }>({ open: false, existing: null });
   const [logging, setLogging] = useState<ScheduledWorkout | null>(null);
+  const [planRows, setPlanRows] = useState<ScheduledWorkout[]>([]);
+  const [showPlan, setShowPlan] = useState(false);
 
   const { days, reload } = useMemo(() => {
     const gridStart = startOfWeek(month, { weekStartsOn: 0 });
@@ -35,9 +38,23 @@ export default function PlanPage() {
     };
   }, [month]);
   useEffect(reload, [reload]);
-  useEffect(() => { activePlan().then(setPlan); }, [items]);
+  useEffect(() => {
+    activePlan().then(async (p) => {
+      setPlan(p);
+      if (!p) return setPlanRows([]);
+      const { data } = await db().from("scheduled_workouts").select("*").eq("plan_id", p.plan.id).order("date").order("time");
+      setPlanRows((data ?? []) as ScheduledWorkout[]);
+    });
+  }, [items]);
 
   const today = ymd(new Date());
+  const next = planRows.find((w) => w.status === "planned" && w.date >= today);
+  const goTo = (date: string) => {
+    const d = new Date(`${date}T00:00`);
+    setSelected(d);
+    setMonth(startOfMonth(d));
+    setShowPlan(false);
+  };
   const forDay = (d: Date) => items.filter((i) => i.date === ymd(d));
   const dayItems = forDay(selected);
 
@@ -61,15 +78,28 @@ export default function PlanPage() {
       />
 
       {plan ? (
-        <Card tone="accent" className="mb-4">
-          <p className="text-xs font-semibold text-muted">תוכנית חודשית · עד {format(new Date(`${plan.plan.ends_on}T00:00`), "d.M")}</p>
-          <h2 className="text-xl font-bold">{plan.plan.goals.map((id) => GOALS.find((x) => x.id === id)?.label ?? id).join(" · ")}</h2>
-          {plan.plan.target_note && <p className="text-sm">{plan.plan.target_note}</p>}
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg" role="progressbar" aria-valuenow={plan.done} aria-valuemax={plan.plan.target_workouts} aria-label="התקדמות בתוכנית">
-            <div className="h-full rounded-full bg-success" style={{ width: `${Math.min(100, (plan.done / plan.plan.target_workouts) * 100)}%` }} />
-          </div>
-          <p className="mt-1 text-xs font-semibold tabular-nums">{plan.done}/{plan.plan.target_workouts} אימונים</p>
-        </Card>
+        <>
+          <button type="button" onClick={() => setShowPlan(true)} className="mb-3 block w-full text-start active:scale-[0.98]">
+            <Card tone="accent">
+              <p className="text-xs font-semibold text-muted">תוכנית חודשית · עד {format(new Date(`${plan.plan.ends_on}T00:00`), "d.M")}</p>
+              <h2 className="text-xl font-bold">{plan.plan.goals.map((id) => GOALS.find((x) => x.id === id)?.label ?? id).join(" · ")}</h2>
+              {plan.plan.target_note && <p className="text-sm">{plan.plan.target_note}</p>}
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg" role="progressbar" aria-valuenow={plan.done} aria-valuemax={plan.plan.target_workouts} aria-label="התקדמות בתוכנית">
+                <div className="h-full rounded-full bg-success" style={{ width: `${Math.min(100, (plan.done / plan.plan.target_workouts) * 100)}%` }} />
+              </div>
+              <p className="mt-1 flex justify-between text-xs font-semibold"><span className="tabular-nums">{plan.done}/{plan.plan.target_workouts} אימונים</span><span className="text-muted">לכל האימונים ›</span></p>
+            </Card>
+          </button>
+          {next && (
+            <div className="mb-4 flex items-center gap-3 rounded-[24px] bg-surface p-4">
+              <button type="button" onClick={() => goTo(next.date)} className="min-w-0 flex-1 text-start">
+                <p className="text-xs font-semibold text-muted">האימון הבא · {next.date === today ? "היום" : format(new Date(`${next.date}T00:00`), "EEEE, d.M", { locale: he })}{next.time ? ` · ${next.time.slice(0, 5)}` : ""}</p>
+                <p className="truncate font-bold">{next.title}</p>
+              </button>
+              {next.date === today && <Link href={`/session?scheduled=${next.id}`} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl bg-accent px-4 text-sm font-semibold text-accent-ink"><Play className="h-4 w-4" /> להתחיל</Link>}
+            </div>
+          )}
+        </>
       ) : plan === null && (
         <Link href="/plan/new" className="mb-4 flex items-center gap-3 rounded-[24px] bg-accent p-4 font-bold text-accent-ink active:scale-[0.98]">
           <CalendarRange className="h-6 w-6" aria-hidden /> לבנות תוכנית חודשית
@@ -148,6 +178,22 @@ export default function PlanPage() {
 
       <ScheduleSheet open={sheet.open} existing={sheet.existing} date={ymd(selected)} onClose={() => setSheet((s) => ({ ...s, open: false }))} onChanged={reload} />
       <NewWorkoutSheet open={adding} onClose={() => setAdding(false)} date={ymd(selected)} onScheduled={reload} onExternal={() => setSheet({ open: true, existing: null })} />
+      <Sheet open={showPlan} onClose={() => setShowPlan(false)} title="האימונים בתוכנית">
+        <ul className="space-y-1.5">
+          {planRows.map((w) => {
+            const tone = statusTone(w, today);
+            return (
+              <li key={w.id}>
+                <button type="button" onClick={() => goTo(w.date)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-start ${w.id === next?.id ? "bg-accent-soft" : "bg-surface"}`}>
+                  <span className="w-16 shrink-0 text-xs font-semibold text-muted">{format(new Date(`${w.date}T00:00`), "EEEEEE d.M", { locale: he })}</span>
+                  <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${w.status === "skipped" ? "line-through" : ""}`}>{w.title}</span>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tone.dot}`} aria-label={tone.label} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </Sheet>
       <LogWorkoutSheet open={!!logging} scheduled={logging} onClose={() => setLogging(null)} onSaved={reload} />
     </main>
   );

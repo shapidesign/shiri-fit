@@ -7,24 +7,24 @@ import { equipmentLabel, muscleLabel } from "@/lib/labels";
 import { db } from "@/lib/db";
 import type { Exercise } from "@/lib/types";
 
-type Props = { exercise: Exercise | null; onClose: () => void; onPick?: (e: Exercise) => void; onRename?: (e: Exercise) => void };
+type Props = { exercise: Exercise | null; onClose: () => void; onPick?: (e: Exercise) => void; pickLabel?: string; onRename?: (e: Exercise) => void };
 
-export function ExerciseSheet({ exercise, onClose, onPick, onRename }: Props) {
+export function ExerciseSheet({ exercise, onClose, onPick, pickLabel, onRename }: Props) {
   return (
     <Sheet open={!!exercise} onClose={onClose} title={exercise ? exercise.name_he ?? exercise.name : ""}>
-      {exercise && <Body key={exercise.id} exercise={exercise} onPick={onPick} onRename={onRename} />}
+      {exercise && <Body key={exercise.id} exercise={exercise} onPick={onPick} pickLabel={pickLabel} onRename={onRename} />}
     </Sheet>
   );
 }
 
-function Body({ exercise, onPick, onRename }: { exercise: Exercise } & Pick<Props, "onPick" | "onRename">) {
+function Body({ exercise, onPick, pickLabel = "הוספה לאימון", onRename }: { exercise: Exercise } & Pick<Props, "onPick" | "pickLabel" | "onRename">) {
   const [frame, setFrame] = useState(0);
   const [nameHe, setNameHe] = useState(exercise.name_he ?? "");
   const [editing, setEditing] = useState(false);
 
   // free-exercise-db has 2 frames per exercise — alternate them to fake motion.
   useEffect(() => {
-    if (exercise.videos.length || exercise.images.length < 2) return;
+    if (exercise.gif || exercise.videos.length || exercise.images.length < 2) return;
     const t = setInterval(() => setFrame((f) => (f + 1) % exercise.images.length), 900);
     return () => clearInterval(t);
   }, [exercise]);
@@ -44,7 +44,10 @@ function Body({ exercise, onPick, onRename }: { exercise: Exercise } & Pick<Prop
       {exercise.name_he && <p className="-mt-3 text-sm text-muted" dir="ltr">{exercise.name}</p>}
 
       <div className="overflow-hidden rounded-2xl bg-surface">
-        {video ? (
+        {exercise.gif ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={exercise.gif} alt={`הדגמה: ${exercise.name}`} className="aspect-square w-full bg-white object-contain" />
+        ) : video ? (
           <video key={video.url} src={video.url} autoPlay loop muted playsInline className="aspect-square w-full object-cover" />
         ) : exercise.images.length ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -66,8 +69,8 @@ function Body({ exercise, onPick, onRename }: { exercise: Exercise } & Pick<Prop
       )}
 
       {exercise.steps.length > 0 && (
-        <ol className="list-decimal space-y-1.5 ps-5 text-sm leading-relaxed" dir="ltr">
-          {exercise.steps.map((s, i) => <li key={i}>{s}</li>)}
+        <ol className="list-decimal space-y-1.5 ps-5 text-sm leading-relaxed" dir={exercise.steps_he?.length ? "rtl" : "ltr"}>
+          {(exercise.steps_he?.length ? exercise.steps_he : exercise.steps).map((s, i) => <li key={i}>{s}</li>)}
         </ol>
       )}
 
@@ -82,7 +85,7 @@ function Body({ exercise, onPick, onRename }: { exercise: Exercise } & Pick<Prop
         </button>
       )}
 
-      {onPick && <Button size="lg" className="w-full" onClick={() => onPick(exercise)}>הוספה לאימון</Button>}
+      {onPick && <Button size="lg" className="w-full" onClick={() => onPick(exercise)}>{pickLabel}</Button>}
     </div>
   );
 }

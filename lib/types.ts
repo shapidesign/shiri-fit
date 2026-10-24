@@ -42,8 +42,10 @@ export type Exercise = {
   force: string | null;
   mechanic: string | null;
   steps: string[];
+  steps_he: string[] | null;
   videos: { url: string; angle?: string; gender?: string }[];
   images: string[];
+  gif: string | null;
   bodymap: unknown;
   created_by: string | null;
   created_at: string;

@@ -25,7 +25,7 @@ export function Sheet({ open, onClose, title, children }: Props) {
     <dialog
       ref={ref}
       className="sheet"
-      onClose={onClose}
+      onClose={(e) => { if (e.target === ref.current) onClose(); }} // a nested sheet's close must not close this one
       onClick={(e) => { if (e.target === ref.current) onClose(); }}
     >
       <div className="safe-bottom px-5 pt-3">

@@ -1,6 +1,7 @@
 import type { Exercise } from "./types";
 
-export type ExerciseInsert = Omit<Exercise, "id" | "created_at" | "created_by" | "bodymap"> & { bodymap?: unknown };
+/** `gif` is left out so re-seeding never wipes the ExerciseDB matches. */
+export type ExerciseInsert = Omit<Exercise, "id" | "created_at" | "created_by" | "bodymap" | "gif" | "steps_he"> & { bodymap?: unknown; steps_he?: string[] | null };
 
 const MUSCLE_ALIAS: Record<string, string> = {
   quadriceps: "quads",
@@ -110,3 +111,16 @@ export function fromMw(e: MwExercise): ExerciseInsert {
 }
 
 const dedupe = <T,>(a: T[]) => Array.from(new Set(a));
+
+// ---- ExerciseDB (GIFs only, matched to existing rows by name) ----
+const FILLER = new Set(["with", "on", "the", "a", "an", "and", "to", "of", "version", "bodyweight", "body", "only"]);
+/** Order- and plural-insensitive name key, ignoring "(male)" / "v. 2" tags: "Pushups" = "push-up (male)", "Dumbbell Goblet Squat" = "goblet squat dumbbell". */
+export const nameKey = (name: string) =>
+  name.toLowerCase()
+    .replace(/\([^)]*\)|\bv\. ?\d+/g, " ")
+    .replace(/push[- ]?ups?/g, "push up").replace(/pull[- ]?ups?/g, "pull up").replace(/sit[- ]?ups?/g, "sit up").replace(/chin[- ]?ups?/g, "chin up")
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w && !FILLER.has(w))
+    .map((w) => (w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w))
+    .sort()
+    .join(" ");

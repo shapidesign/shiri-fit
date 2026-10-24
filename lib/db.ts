@@ -2,8 +2,8 @@
 
 import { format } from "date-fns";
 import { exerciseOr } from "@/lib/exercise-or";
-import { cooldownCount, fitsLevel, FOCUS_LABEL, GENERATED_VIBES, mainCount, muscleOrder, pickExercises, pickPreferring, STRETCH, volumeFor, WARMUP, type Focus } from "@/lib/generate";
-import { vibeLabel } from "@/lib/labels";
+import { cooldownCount, fitsLevel, FOCUS_LABEL, GENERATED_VIBES, mainCount, muscleOrder, pickExercises, pickPreferring, STRETCH, usableWithGear, volumeFor, WARMUP, type Focus } from "@/lib/generate";
+import { muscleLabel, vibeLabel } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/client";
 import type { LoggedSet } from "@/lib/progression";
 import type { Exercise, Phase, Profile, ScheduledWorkout, TemplateExercise, Vibe, WorkoutLog, WorkoutPlan, WorkoutTemplate } from "@/lib/types";
@@ -28,8 +28,8 @@ export async function searchExercises(opts: { q?: string; muscles?: string[]; ca
   if (or) query = query.or(or);
   if (opts.muscles?.length) query = query.overlaps("muscles", opts.muscles);
   if (opts.categories?.length) query = query.in("category", opts.categories);
-  // MuscleWiki rows (with video) first, then by name
-  const { data } = await query.order("source", { ascending: false }).order("name");
+  // MuscleWiki rows (with video) first, then ones with a GIF, then by name
+  const { data } = await query.order("source", { ascending: false }).order("gif", { nullsFirst: false }).order("name");
   return (data ?? []) as Exercise[];
 }
 
@@ -64,8 +64,8 @@ export async function setHistory(): Promise<Map<string, LoggedSet[][]>> {
   return m;
 }
 
-/** Plan context: `goals` set the rep scheme, `level` caps difficulty (unset = any), `week` (0-3) sets the volume. */
-export type WorkoutOpts = { minutes: number; vibe: Vibe; equipment: string[]; focus?: Focus; goals?: string[]; level?: number; week?: number };
+/** Plan context: `goals` set the rep scheme, `level` caps difficulty (unset = any), `week` (0-3) sets the volume. `muscle` overrides `focus`. */
+export type WorkoutOpts = { minutes: number; vibe: Vibe; equipment: string[]; focus?: Focus; muscle?: string; goals?: string[]; level?: number; week?: number };
 
 const EXTRAS_OR = ["stretch", "jumping jack", "jog", "march", "arm circle", "high knee", "butt kick", "inchworm", "leg swing", "cat%cow"].map((n) => `name.ilike.%${n}%`).join(",");
 /** Warm-up and stretch candidates; fetched separately so the 300-row main pool can't crowd them out. */
@@ -106,13 +106,16 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts): Promise
 
   const gear = [...new Set(["bodyweight", "mat", ...o.equipment])];
   // Nearly all stretches are filed under "other" and need nothing but a wall or chair.
-  const [pool, extras] = await Promise.all([searchExercises({ categories: gear, limit: 300 }), extrasPool([...gear, "other"])]);
-  const main = pickExercises(
-    pool.filter((e) => !WARMUP.test(e.name) && !STRETCH.test(e.name) && (o.level === undefined || fitsLevel(e, o.level))),
-    mainCount(o.minutes),
-    muscleOrder(focus, profile.gender),
-    o.equipment.includes("dumbbells") ? profile.dumbbell_pairs : null,
-  );
+  const [pool, extras] = await Promise.all([
+    searchExercises({ categories: gear, muscles: o.muscle ? [o.muscle] : undefined, limit: 300 }),
+    extrasPool([...gear, "other"]),
+  ]);
+  const candidates = pool.filter((e) => !WARMUP.test(e.name) && !STRETCH.test(e.name) && (o.level === undefined || fitsLevel(e, o.level)));
+  const pairs = o.equipment.includes("dumbbells") ? profile.dumbbell_pairs : null;
+  // One muscle: several different exercises for it, not one per muscle.
+  const main = o.muscle
+    ? pickPreferring(candidates.filter((e) => e.images.length && usableWithGear(e, pairs)), mainCount(o.minutes), [])
+    : pickExercises(candidates, mainCount(o.minutes), muscleOrder(focus, profile.gender), pairs);
   const muscles = main.flatMap((e) => e.muscles);
   const used = new Set(main.map((e) => e.id));
   // ponytail: only ~8 named warm-ups in the DB; easy bodyweight moves fill the gap.
@@ -130,7 +133,7 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts): Promise
     ...cooldown.map((e) => [e, "cooldown", 1, null, 30] as const),
   ].map(([e, phase, sets, reps, dur], i) => row(e, i, phase, sets, reps, dur));
 
-  return { ...base, name: `${vibeLabel(o.vibe)} · ${FOCUS_LABEL[focus]}`, muscle_groups: main.map((e) => e.muscles[0]), template_exercises: rows };
+  return { ...base, name: `${vibeLabel(o.vibe)} · ${o.muscle ? muscleLabel(o.muscle) : FOCUS_LABEL[focus]}`, muscle_groups: main.map((e) => e.muscles[0]), template_exercises: rows };
 }
 
 /** Persists a generated workout so scheduled rows can point at it. Returns the template id. */
@@ -150,6 +153,9 @@ export async function saveGeneratedTemplate(t: TemplateWithExercises): Promise<s
   }
   return data.id;
 }
+
+export const swapTemplateExercise = (rowId: string, exerciseId: number) =>
+  db().from("template_exercises").update({ exercise_id: exerciseId }).eq("id", rowId);
 
 export async function userId() {
   const { data } = await db().auth.getUser();

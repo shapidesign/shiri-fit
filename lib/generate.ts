@@ -33,11 +33,14 @@ export const nextLevel = (prev: { level: number; target: number; done: number } 
 export const weekIndex = (start: Date, date: string) =>
   Math.min(3, Math.floor(differenceInCalendarDays(new Date(`${date}T00:00`), start) / 7));
 
-/** `n` exercises from `pool`, preferring ones that hit `muscles`, random within that. */
+/** Ties go to exercises with an animated demo. */
+const byGif = (a: Pick<Exercise, "gif">, b: Pick<Exercise, "gif">) => Number(!!b.gif) - Number(!!a.gif);
+
+/** `n` exercises from `pool`, preferring ones that hit `muscles`, then ones with a GIF, random within that. */
 export const pickPreferring = (pool: Exercise[], n: number, muscles: string[]) =>
   [...pool]
     .sort(() => Math.random() - 0.5)
-    .sort((a, b) => Number(b.muscles.some((m) => muscles.includes(m))) - Number(a.muscles.some((m) => muscles.includes(m))))
+    .sort((a, b) => Number(b.muscles.some((m) => muscles.includes(m))) - Number(a.muscles.some((m) => muscles.includes(m))) || byGif(a, b))
     .slice(0, n);
 
 export function muscleOrder(focus: Focus, gender: Profile["gender"]) {
@@ -67,7 +70,7 @@ export function pickExercises(pool: Exercise[], count: number, order: string[], 
   return pool
     .filter((e) => e.images.length && usableWithGear(e, dumbbellPairs))
     .sort(() => Math.random() - 0.5)
-    .sort((a, b) => rank(a) - rank(b))
+    .sort((a, b) => rank(a) - rank(b) || byGif(a, b))
     .filter((e) => e.muscles[0] && !seen.has(e.muscles[0]) && seen.add(e.muscles[0]))
     .slice(0, count);
 }

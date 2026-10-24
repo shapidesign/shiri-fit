@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   title: { default: "Shiri Fit", template: "%s · Shiri Fit" },
   description: "האימונים של שירי",
   applicationName: "Shiri Fit",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Shiri Fit" },
+  appleWebApp: { capable: true, statusBarStyle: "black", title: "Shiri Fit" },
   icons: { apple: "/icons/apple-touch-icon.png?v=2", icon: "/icons/icon.svg?v=2" },
 };
 
@@ -28,10 +28,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f3ee" },
-    { media: "(prefers-color-scheme: dark)", color: "#171412" },
-  ],
+  themeColor: "#171412",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

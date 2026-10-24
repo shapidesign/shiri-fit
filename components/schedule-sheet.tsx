@@ -1,8 +1,9 @@
 "use client";
 
 import { addWeeks, format } from "date-fns";
-import { Trash2 } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeftRight, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { SwapSheet } from "@/components/swap-sheet";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, Stepper } from "@/components/ui/field";
@@ -11,9 +12,9 @@ import { useProfile } from "@/components/profile-provider";
 import { IntensityPicker } from "@/components/log-workout-sheet";
 import { removeCalendarEvent, syncCalendar } from "@/lib/calendar-client";
 import { celebrate } from "@/lib/celebrate";
-import { db, userId } from "@/lib/db";
-import { VIBES } from "@/lib/labels";
-import type { Intensity, ScheduledWorkout, Vibe } from "@/lib/types";
+import { db, getTemplate, swapTemplateExercise, userId, type TemplateWithExercises } from "@/lib/db";
+import { muscleLabel, PHASE_LABEL, VIBES } from "@/lib/labels";
+import type { Exercise, Intensity, ScheduledWorkout, Vibe } from "@/lib/types";
 
 type Props = {
   open: boolean;
@@ -97,6 +98,7 @@ function Form({ date, existing, onDone }: Omit<Props, "open" | "onClose" | "onCh
       <Stepper label="משך" value={duration} onChange={setDuration} min={10} max={240} step={5} suffix="דק׳" />
       <IntensityPicker value={intensity} onChange={setIntensity} />
       {!existing && <Stepper label="לשבץ לכמה שבועות" value={weeks} onChange={setWeeks} min={1} max={12} suffix={weeks === 1 ? "שבוע" : "שבועות"} />}
+      {existing?.template_id && <TemplateExercises templateId={existing.template_id} />}
       <label className="block">
         <span className="mb-1.5 block text-sm font-semibold">הערות</span>
         <input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-12 w-full rounded-2xl border border-border bg-surface-2 px-4 outline-none" />
@@ -111,6 +113,51 @@ function Form({ date, existing, onDone }: Omit<Props, "open" | "onClose" | "onCh
         )}
         <Button size="lg" className="flex-1" loading={saving} disabled={!title.trim()} onClick={save}>{existing ? "שמירה" : "שיבוץ"}</Button>
       </div>
+    </div>
+  );
+}
+
+/** The planned workout's exercises; each swaps for another one for the same muscle (saved right away). */
+function TemplateExercises({ templateId }: { templateId: string }) {
+  const [rows, setRows] = useState<TemplateWithExercises["template_exercises"] | null>(null);
+  const [swapping, setSwapping] = useState<TemplateWithExercises["template_exercises"][number] | null>(null);
+  useEffect(() => { getTemplate(templateId).then((t) => setRows(t?.template_exercises ?? [])); }, [templateId]);
+
+  async function swap(e: Exercise) {
+    const r = swapping!;
+    setSwapping(null);
+    const { error } = await swapTemplateExercise(r.id, e.id);
+    if (error) return alert("השמירה נכשלה");
+    setRows((rs) => rs!.map((x) => (x.id === r.id ? { ...x, exercise_id: e.id, exercise: e } : x)));
+  }
+
+  if (!rows) return <div className="h-24 animate-pulse rounded-2xl bg-surface" />;
+  if (!rows.length) return null;
+  return (
+    <div>
+      <p className="mb-1.5 text-sm font-semibold">תרגילים</p>
+      <ul className="space-y-1.5">
+        {rows.map((r) => (
+          <li key={r.id} className="flex items-center gap-2 rounded-2xl bg-surface px-3 py-2">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">{r.exercise ? r.exercise.name_he ?? r.exercise.name : r.custom_name}</span>
+              <span className="block text-xs text-muted">{PHASE_LABEL[r.phase]}{r.exercise?.muscles[0] ? ` · ${muscleLabel(r.exercise.muscles[0])}` : ""}</span>
+            </span>
+            {r.exercise && (
+              <button type="button" onClick={() => setSwapping(r)} aria-label="החלפה" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 active:scale-95">
+                <ArrowLeftRight className="h-4 w-4" />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <SwapSheet
+        exercise={swapping?.exercise ?? null}
+        phase={swapping?.phase ?? "main"}
+        exclude={rows.flatMap((r) => (r.exercise ? [r.exercise.id] : []))}
+        onClose={() => setSwapping(null)}
+        onSwap={swap}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 // Run: npx tsx lib/generate.check.ts
 import assert from "node:assert/strict";
 import { fitsLevel, mainCount, nextLevel, pickExercises, planDates, planFocuses, usableWithGear, volumeFor, weekIndex } from "./generate";
+import { nameKey } from "./exercise-normalize";
 import { needsWeight } from "./labels";
 import type { Exercise } from "./types";
 
@@ -34,6 +35,13 @@ const pool = [ex(1, "Dumbbell Bench Press", "dumbbells", "chest"), ex(2, "Single
 const picked = pickExercises(pool, 3, ["chest", "lats", "quads"], false);
 assert.deepEqual(picked.map((e) => e.muscles[0]), ["chest", "lats", "quads"]);
 assert.ok(!picked.some((e) => e.id === 1), "two-dumbbell exercise picked for a single dumbbell");
+
+const withGif = { ...ex(7, "Push-Up", "bodyweight", "chest"), gif: "g" };
+assert.equal(pickExercises([...pool, withGif], 1, ["chest"], true)[0].id, 7, "GIF exercise should win the tie");
+
+assert.equal(nameKey("Pushups"), nameKey("push-up (male)"));
+assert.equal(nameKey("Dumbbell Goblet Squats"), nameKey("goblet squat with dumbbell v. 2"));
+assert.notEqual(nameKey("Cable Crunch"), nameKey("Crunch"));
 
 assert.equal(needsWeight("bodyweight"), false);
 assert.equal(needsWeight("mat"), false);

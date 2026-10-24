@@ -13,7 +13,8 @@ import { useProfile } from "@/components/profile-provider";
 import { syncCalendar } from "@/lib/calendar-client";
 import { celebrate } from "@/lib/celebrate";
 import { db, defaultWorkoutOpts, generateWorkout, saveGeneratedTemplate, userId } from "@/lib/db";
-import { g, VIBES } from "@/lib/labels";
+import { FOCUS_LABEL, GENERATED_VIBES, type Focus } from "@/lib/generate";
+import { g, MUSCLES, VIBES } from "@/lib/labels";
 import type { Vibe } from "@/lib/types";
 
 type Props = {
@@ -52,15 +53,19 @@ function Form({ date, onStart, onScheduled, onExternal }: { date?: string; onSta
   const [time, setTime] = useState("08:00");
   const [saving, setSaving] = useState(false);
 
+  const [target, setTarget] = useState("full");
+  const focus = target in FOCUS_LABEL ? (target as Focus) : undefined;
+  const muscle = focus ? undefined : target;
+
   async function go() {
     setSaving(true);
     await persistPairs(profile, setProfile, pairs);
     if (!later) {
-      router.push(`/session?quick=1&min=${minutes}&vibe=${vibe}&eq=${equipment.join(",")}`);
+      router.push(`/session?quick=1&min=${minutes}&vibe=${vibe}&eq=${equipment.join(",")}&${focus ? `focus=${focus}` : `muscle=${encodeURIComponent(target)}`}`);
       return onStart();
     }
     try {
-      const t = await generateWorkout({ ...profile, dumbbell_pairs: pairs }, { minutes, vibe, equipment });
+      const t = await generateWorkout({ ...profile, dumbbell_pairs: pairs }, { minutes, vibe, equipment, focus, muscle });
       const templateId = t.template_exercises.length ? await saveGeneratedTemplate(t) : null;
       const { data, error } = await db().from("scheduled_workouts").insert({
         user_id: await userId(), date: day, time, title: t.name, vibe, intensity: t.intensity, duration_min: minutes, source: "app", template_id: templateId,
@@ -81,6 +86,16 @@ function Form({ date, onStart, onScheduled, onExternal }: { date?: string; onSta
         <p className="mb-2 text-sm font-semibold">איזה אימון?</p>
         <ChipRow>{VIBES.filter((v) => v.id !== "other").map((v) => <Chip key={v.id} selected={vibe === v.id} onClick={() => setVibe(v.id)}>{v.label}</Chip>)}</ChipRow>
       </div>
+      {GENERATED_VIBES.includes(vibe) && (
+        <div>
+          <p className="mb-2 text-sm font-semibold">על מה עובדים?</p>
+          <ChipRow>
+            {[...(["full", "upper", "lower"] as const).map((id) => ({ id, label: FOCUS_LABEL[id] })), ...MUSCLES.filter((m) => m.id !== "full body")].map((m) => (
+              <Chip key={m.id} selected={target === m.id} onClick={() => setTarget(m.id)}>{m.label}</Chip>
+            ))}
+          </ChipRow>
+        </div>
+      )}
       <div>
         <p className="mb-2 text-sm font-semibold">איזה ציוד יש לך עכשיו?</p>
         <EquipmentPicker equipment={equipment} onEquipment={setEquipment} pairs={pairs} onPairs={setPairs} />

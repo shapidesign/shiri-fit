@@ -129,7 +129,7 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
                     {e.muscles.map(muscleLabel).join(" · ")}{e.category ? ` · ${equipmentLabel(e.category)}` : ""}
                   </span>
                 </span>
-                {e.videos.length > 0 && <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-ink">וידאו</span>}
+                {(e.videos.length > 0 || e.gif) && <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-ink">{e.videos.length ? "וידאו" : "אנימציה"}</span>}
               </button>
             </li>
           ))}
