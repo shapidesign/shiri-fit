@@ -5,7 +5,8 @@ import { Flame } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
-import { Field, Stepper } from "@/components/ui/field";
+import { DurationClock } from "@/components/ui/duration-clock";
+import { Field } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { useProfile } from "@/components/profile-provider";
 import { celebrate } from "@/lib/celebrate";
@@ -76,7 +77,7 @@ function Form({ scheduled, session, onSaved }: { scheduled?: ScheduledWorkout | 
         <ChipRow>{VIBES.map((v) => <Chip key={v.id} selected={vibe === v.id} onClick={() => setVibe(v.id)}>{v.label}</Chip>)}</ChipRow>
       </div>
       <IntensityPicker value={intensity} onChange={setIntensity} label="כמה היה קשה?" />
-      <Stepper label="משך" value={minutes} onChange={setMinutes} min={5} max={300} step={5} suffix="דק׳" />
+      <DurationClock label="משך" value={minutes} onChange={setMinutes} min={5} max={300} />
       <Field label="מתי" name="when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
 
       <div className="flex items-center justify-between rounded-2xl bg-accent-soft px-4 py-3">
