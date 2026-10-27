@@ -1,23 +1,28 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { ExerciseSheet } from "@/components/exercise-sheet";
 import { LogWorkoutSheet } from "@/components/log-workout-sheet";
 import { RecoverySheet } from "@/components/recovery-sheet";
+import { RestTimer } from "@/components/rest-timer";
 import { SwapSheet } from "@/components/swap-sheet";
 import { useProfile } from "@/components/profile-provider";
 import { Mini } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
-import { db, defaultWorkoutOpts, exerciseKey, generateWorkout, getTemplate, setHistory, swapTemplateExercise, type TemplateWithExercises, type WorkoutOpts } from "@/lib/db";
+import { clearDraft, discardDraft, readDraft, replaceDraft } from "@/lib/active-session";
+import { db, defaultWorkoutOpts, exerciseKey, generateWorkout, getTemplate, recentSignals, setHistory, swapTemplateExercise, type TemplateWithExercises, type WorkoutOpts } from "@/lib/db";
+import { celebrate } from "@/lib/celebrate";
+import { progressFor, restFor } from "@/lib/generate";
 import { g, muscleLabel, needsWeight, PHASE_LABEL, vibeLabel } from "@/lib/labels";
-import { suggestWeight, type LoggedSet, type Suggestion } from "@/lib/progression";
+import { chosenWork, suggestWeight, type LoggedSet, type Suggestion } from "@/lib/progression";
+import { saveWorkoutLog } from "@/lib/save-log";
 import type { Exercise, ExerciseDone, ScheduledWorkout, WorkoutLog } from "@/lib/types";
 
-export type QuickParams = Partial<Pick<WorkoutOpts, "minutes" | "vibe" | "equipment" | "focus" | "muscle">>;
+export type QuickParams = Partial<Pick<WorkoutOpts, "minutes" | "vibe" | "equipment" | "focus" | "muscle" | "core">>;
 type Props = { scheduledId: string | null; templateId: string | null; quick: QuickParams | null };
 type Row = TemplateWithExercises["template_exercises"][number];
 const rowName = (r: Row) => (r.exercise ? r.exercise.name_he ?? r.exercise.name : r.custom_name ?? "");
@@ -40,6 +45,9 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
   const finish = () => setFinishMin(Math.max(1, Math.round((Date.now() - start) / 60000)));
   const [savedLog, setSavedLog] = useState<WorkoutLog | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const [rest, setRest] = useState<{ endsAt: number | null; total: number }>({ endsAt: null, total: 0 });
+  const onRest = useCallback((endsAt: number | null, total: number) => setRest({ endsAt, total }), []);
+  const restSec = restFor(profile.goals);
 
   // Closing the tab mid-workout gets the browser's own "leave site?" prompt.
   useEffect(() => {
@@ -61,20 +69,32 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
       }
       const d = defaultWorkoutOpts(profile);
       const t = tid ? await getTemplate(tid) : quick
-        ? await generateWorkout(profile, { minutes: quick.minutes ?? d.minutes, vibe: quick.vibe ?? d.vibe, equipment: quick.equipment ?? d.equipment, focus: quick.focus, muscle: quick.muscle })
+        ? await generateWorkout(profile, { minutes: quick.minutes ?? d.minutes, vibe: quick.vibe ?? d.vibe, equipment: quick.equipment ?? d.equipment, focus: quick.focus, muscle: quick.muscle, core: quick.core })
         : null;
       if (t) {
-        const history = await setHistory();
-        // Push heavier only when the program is about getting stronger / toned and isn't a light day.
-        const progress = (sched?.intensity ?? t.intensity) !== "light"
-          && ((sched?.vibe ?? t.vibe) === "strength" || profile.goals.some((g) => g === "strength" || g === "tone"));
+        const [history, signals] = await Promise.all([setHistory(), recentSignals(profile.goals)]);
+        const progress = progressFor(sched?.intensity ?? t.intensity, sched?.vibe ?? t.vibe, profile.goals, signals.bias);
+        const draft = readDraft(profile.id);
+        const here = `${location.pathname}${location.search}`;
+        const same = !!draft && (
+          (!!scheduledId && draft.scheduledId === scheduledId) ||
+          (!!t.id && draft.templateId === t.id) ||
+          (!scheduledId && !t.id && draft.href === here)
+        );
+        const owned = profile.owned_weights ?? [];
         const nextTips: Record<string, Suggestion | null> = {};
         const nextSets: Record<string, LoggedSet[]> = {};
         for (const r of t.template_exercises) {
           const w = weighted(r);
-          const tip = w ? suggestWeight(history.get(exerciseKey({ exercise_id: r.exercise?.id, name: rowName(r) })) ?? [], r.reps, progress, r.exercise?.category ?? null) : null;
+          const past = history.get(exerciseKey({ exercise_id: r.exercise?.id, name: rowName(r) }));
+          const chosen = chosenWork(past);
+          const reps = chosen.reps ?? r.reps;
+          const tip = w ? suggestWeight(past ?? [], reps, progress, r.exercise?.category ?? null, owned) : null;
           nextTips[r.id] = tip;
-          nextSets[r.id] = Array.from({ length: r.sets ?? 1 }, () => ({ reps: r.reps ?? undefined, weight_kg: w ? tip?.kg ?? r.weight_kg ?? undefined : undefined, done: false }));
+          const saved = same ? draft?.sets[r.id] : undefined;
+          nextSets[r.id] = saved?.length
+            ? saved
+            : Array.from({ length: r.sets ?? 1 }, () => ({ reps: reps ?? undefined, weight_kg: w ? tip?.kg ?? chosen.kg ?? r.weight_kg ?? undefined : undefined, done: false }));
         }
         setTips(nextTips);
         setSets(nextSets);
@@ -102,12 +122,16 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
     [id]: d[id].map((s, j) => (j === i || ("weight_kg" in patch && j > i && !s.done) ? { ...s, ...patch } : s)),
   }));
   // The set number is only a label; the check is the only control, and it always shows a V so "done" is visible before tapping.
-  const tick = (id: string, i: number, on: boolean) => (
+  const tick = (r: Row, i: number, on: boolean) => (
     <button
       type="button"
       aria-pressed={on}
       aria-label={on ? `ביטול סימון סט ${i + 1}` : `סימון סט ${i + 1} כבוצע`}
-      onClick={() => edit(id, i, { done: !on })}
+      onClick={() => {
+        edit(r.id, i, { done: !on });
+        // Rest only between main sets, and not after the last one.
+        if (!on && r.phase === "main" && ticked + 1 < total) setRest({ endsAt: Date.now() + restSec * 1000, total: restSec });
+      }}
       className="block shrink-0 active:scale-95"
     >
       <span className="block text-center text-[11px] font-semibold text-muted">בוצע</span>
@@ -132,6 +156,36 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
   const title = scheduled?.title ?? template?.name ?? "אימון";
   const vibe = scheduled?.vibe ?? template?.vibe ?? "strength";
   const intensity = scheduled?.intensity ?? template?.intensity ?? "moderate";
+
+  // Every set ticked: save the log straight away and go to the review. Fires once per reaching the total.
+  const allTicked = total > 0 && ticked === total;
+  const autoSaved = useRef(false);
+  useEffect(() => {
+    if (!allTicked) { autoSaved.current = false; return; }
+    if (autoSaved.current || savedLog || finishMin !== null) return;
+    autoSaved.current = true;
+    setRest({ endsAt: null, total: 0 });
+    saveWorkoutLog({
+      scheduled, title, performedAt: new Date(), minutes: Math.max(1, Math.round((Date.now() - start) / 60000)), vibe, intensity,
+      weightKg: profile.weight_kg, exercises: exercisesDone, templateId: template?.id || null, countForPlan: true, calendarSync: profile.calendar_sync,
+    })
+      .then((log) => celebrate("אימון הושלם").then(() => setSavedLog(log)))
+      .catch(() => { autoSaved.current = false; alert("השמירה נכשלה"); });
+  }, [allTicked, savedLog, finishMin, scheduled, title, start, vibe, intensity, profile.weight_kg, profile.calendar_sync, exercisesDone, template]);
+
+  // Keep the workout on this phone so closing the app doesn't drop it.
+  useEffect(() => {
+    if (savedLog) { clearDraft(profile.id); return; }
+    if (loading) return;
+    const templateId = template?.id || null;
+    if (!scheduledId && !templateId && !quick) return;
+    const href = scheduledId
+      ? `/session?scheduled=${scheduledId}`
+      : templateId
+        ? `/session?template=${templateId}`
+        : `${location.pathname}${location.search}`;
+    void replaceDraft(profile.id, { templateId, scheduledId, title, href, sets });
+  }, [savedLog, loading, template, scheduledId, quick, title, sets, profile.id]);
 
   if (loading) return <div className="h-80 animate-pulse rounded-[24px] bg-surface" />;
 
@@ -189,7 +243,7 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
                       {!timed && <div className="flex-1"><Mini label="חזרות" value={s.reps ?? null} onChange={(v) => edit(r.id, i, { reps: v ?? undefined })} /></div>}
                       {!timed && weighted(r) && <div className="flex-1"><Mini label="ק״ג" step="0.5" placeholder="—" value={s.weight_kg ?? null} onChange={(v) => edit(r.id, i, { weight_kg: v ?? undefined })} /></div>}
                       {timed && <span className="mb-2 flex-1 text-sm text-muted">{r.duration_sec} שנ׳</span>}
-                      {tick(r.id, i, s.done)}
+                      {tick(r, i, s.done)}
                     </li>
                   ))}
                 </ul>
@@ -200,6 +254,8 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
         </ul>
       )}
 
+      {!savedLog && <RestTimer endsAt={rest.endsAt} total={rest.total} onChange={onRest} />}
+
       <div className="fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-lg px-4">
         <Button size="lg" className="w-full shadow-lg" onClick={finish}>סיום אימון</Button>
       </div>
@@ -208,7 +264,7 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
         <div className="space-y-2">
           <Button size="lg" className="w-full" onClick={() => { setLeaving(false); finish(); }}>לתעד את האימון</Button>
           <Button size="lg" variant="secondary" className="w-full" onClick={() => setLeaving(false)}>להמשיך להתאמן</Button>
-          <Button size="lg" variant="danger" className="w-full" onClick={() => router.replace("/")}>לצאת בלי לשמור</Button>
+          <Button size="lg" variant="danger" className="w-full" onClick={() => { void discardDraft(profile.id).then(() => router.replace("/")); }}>לצאת בלי לשמור</Button>
         </div>
       </Sheet>
       <LogWorkoutSheet
@@ -218,7 +274,7 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
         session={{ title, vibe, intensity, minutes: finishMin ?? 1, exercises: exercisesDone, templateId: template?.id || null }}
         onSaved={(log) => setSavedLog(log)}
       />
-      <RecoverySheet open={!!savedLog} log={savedLog} onClose={() => { setSavedLog(null); router.replace("/"); router.refresh(); }} />
+      <RecoverySheet open={!!savedLog} log={savedLog} askDifficulty onClose={() => { setSavedLog(null); router.replace("/"); router.refresh(); }} />
       <ExerciseSheet exercise={detail} onClose={() => setDetail(null)} />
       <SwapSheet
         exercise={swapping?.exercise ?? null}

@@ -7,6 +7,7 @@ export type Status = "planned" | "done" | "skipped";
 export type Feeling = "great" | "good" | "hard" | "exhausted";
 export type BodyState = "fresh" | "tight" | "sore" | "pain";
 export type Phase = "warmup" | "main" | "cooldown";
+export type Difficulty = "easy" | "right" | "hard";
 
 export type Profile = {
   id: string;
@@ -17,8 +18,15 @@ export type Profile = {
   height_cm: number | null;
   birth_year: number | null;
   equipment: string[];
-  /** null = not asked, true = a pair of each weight, false = one dumbbell of each weight. */
+  /** null = not asked, true = a pair of each weight, false = one of each weight. */
   dumbbell_pairs: boolean | null;
+  kettlebell_pairs: boolean | null;
+  /** new = novice only, some = up to intermediate, years = everything. null = not asked. */
+  training_experience: "new" | "some" | "years" | null;
+  /** low = light, moderate, high = hard. null = not asked. */
+  conditioning: "low" | "moderate" | "high" | null;
+  /** Kg the user actually owns. Empty = not asked, suggestions stay on the usual jumps. */
+  owned_weights: number[];
   days_per_week: number;
   goals: string[];
   vibes: string[];
@@ -92,6 +100,8 @@ export type ScheduledWorkout = {
   google_event_id: string | null;
   series_id: string | null;
   plan_id: string | null;
+  /** Planned slot filled by a workout done outside the plan. */
+  off_plan: boolean;
   reminded_at: string | null;
   notes: string | null;
   created_at: string;
@@ -131,6 +141,7 @@ export type WorkoutLog = {
   is_external: boolean;
   exercises_done: ExerciseDone[];
   notes: string | null;
+  difficulty: Difficulty | null;
   google_event_id: string | null;
   recovery_reminded_at: string | null;
   created_at: string;

@@ -7,14 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, Stepper } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
-import { EquipmentPicker, equipmentValid, persistPairs } from "@/components/equipment-picker";
+import { CoreQuestion, EquipmentPicker, equipmentValid, persistGear } from "@/components/equipment-picker";
 import { ReminderPrompt } from "@/components/reminder-prompt";
 import { useProfile } from "@/components/profile-provider";
 import { syncCalendar } from "@/lib/calendar-client";
 import { celebrate } from "@/lib/celebrate";
+import { replaceDraft } from "@/lib/active-session";
 import { db, defaultWorkoutOpts, generateWorkout, saveGeneratedTemplate, userId } from "@/lib/db";
 import { FOCUS_LABEL, GENERATED_VIBES, type Focus } from "@/lib/generate";
-import { g, MUSCLES, VIBES } from "@/lib/labels";
+import { experienceLevel, g, MUSCLES, VIBES } from "@/lib/labels";
 import type { Vibe } from "@/lib/types";
 
 type Props = {
@@ -48,25 +49,35 @@ function Form({ date, onStart, onScheduled, onExternal }: { date?: string; onSta
   const [vibe, setVibe] = useState<Vibe>(d.vibe);
   const [equipment, setEquipment] = useState(d.equipment);
   const [pairs, setPairs] = useState(profile.dumbbell_pairs);
+  const [kbPairs, setKbPairs] = useState(profile.kettlebell_pairs);
   const [later, setLater] = useState(!!date);
   const [day, setDay] = useState(date ?? format(new Date(), "yyyy-MM-dd"));
   const [time, setTime] = useState("08:00");
   const [saving, setSaving] = useState(false);
 
   const [target, setTarget] = useState("full");
+  const [core, setCore] = useState<boolean | null>(null);
   const focus = target in FOCUS_LABEL ? (target as Focus) : undefined;
   const muscle = focus ? undefined : target;
+  const askCore = GENERATED_VIBES.includes(vibe) && !!focus;
 
   async function go() {
     setSaving(true);
-    await persistPairs(profile, setProfile, pairs);
-    if (!later) {
-      router.push(`/session?quick=1&min=${minutes}&vibe=${vibe}&eq=${equipment.join(",")}&${focus ? `focus=${focus}` : `muscle=${encodeURIComponent(target)}`}`);
-      return onStart();
-    }
     try {
-      const t = await generateWorkout({ ...profile, dumbbell_pairs: pairs }, { minutes, vibe, equipment, focus, muscle });
+      await persistGear(profile, setProfile, { dumbbell_pairs: pairs, kettlebell_pairs: kbPairs });
+      const level = experienceLevel(profile.training_experience);
+      const who = { ...profile, dumbbell_pairs: pairs, kettlebell_pairs: kbPairs };
+      const opts = { minutes, vibe, equipment, focus, muscle, ...(level !== undefined ? { level } : {}), ...(askCore && core !== null ? { core } : {}) };
+      const t = await generateWorkout(who, opts);
       const templateId = t.template_exercises.length ? await saveGeneratedTemplate(t) : null;
+      if (!later) {
+        const href = templateId
+          ? `/session?template=${templateId}`
+          : `/session?quick=1&min=${minutes}&vibe=${vibe}&eq=${equipment.join(",")}&${focus ? `focus=${focus}` : `muscle=${encodeURIComponent(target)}`}${askCore && core !== null ? `&core=${core ? 1 : 0}` : ""}`;
+        await replaceDraft(profile.id, { templateId, scheduledId: null, title: t.name, href, sets: {} });
+        router.push(href);
+        return onStart();
+      }
       const { data, error } = await db().from("scheduled_workouts").insert({
         user_id: await userId(), date: day, time, title: t.name, vibe, intensity: t.intensity, duration_min: minutes, source: "app", template_id: templateId,
       }).select("id").single();
@@ -96,9 +107,10 @@ function Form({ date, onStart, onScheduled, onExternal }: { date?: string; onSta
           </ChipRow>
         </div>
       )}
+      {askCore && <CoreQuestion value={core} onChange={setCore} />}
       <div>
         <p className="mb-2 text-sm font-semibold">איזה ציוד יש לך עכשיו?</p>
-        <EquipmentPicker equipment={equipment} onEquipment={setEquipment} pairs={pairs} onPairs={setPairs} />
+        <EquipmentPicker equipment={equipment} onEquipment={setEquipment} pairs={pairs} onPairs={setPairs} kbPairs={kbPairs} onKbPairs={setKbPairs} />
       </div>
       <div role="tablist" className="grid grid-cols-2 rounded-2xl bg-surface p-1">
         {([[false, "עכשיו"], [true, "לשבץ"]] as const).map(([id, label]) => (
@@ -111,7 +123,7 @@ function Form({ date, onStart, onScheduled, onExternal }: { date?: string; onSta
           <Field label="שעה" name="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
       )}
-      <Button size="lg" className="w-full" loading={saving} disabled={!equipmentValid(equipment, pairs)} onClick={go}>
+      <Button size="lg" className="w-full" loading={saving} disabled={!equipmentValid(equipment, pairs, kbPairs) || (askCore && core === null)} onClick={go}>
         {later ? "שיבוץ" : g(profile.gender, "סדרי לי אימון", "סדר לי אימון")}
       </Button>
       {onExternal && <button type="button" onClick={onExternal} className="w-full text-center text-sm font-semibold text-muted underline">אימון חיצוני (סטודיו, חוג, פיזיו)</button>}

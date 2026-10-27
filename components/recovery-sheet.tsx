@@ -8,24 +8,25 @@ import { Chip } from "@/components/ui/chip";
 import { Sheet } from "@/components/ui/sheet";
 import { db, userId } from "@/lib/db";
 import { useProfile } from "@/components/profile-provider";
-import { BODY_STATES, FEELINGS, feelingLabel, g } from "@/lib/labels";
-import type { BodyState, Feeling, WorkoutLog } from "@/lib/types";
+import { BODY_STATES, DIFFICULTIES, FEELINGS, feelingLabel, g } from "@/lib/labels";
+import type { BodyState, Difficulty, Feeling, WorkoutLog } from "@/lib/types";
 
-type Props = { open: boolean; onClose: () => void; onSaved?: () => void; log?: WorkoutLog | null };
+type Props = { open: boolean; onClose: () => void; onSaved?: () => void; log?: WorkoutLog | null; askDifficulty?: boolean };
 type LogPick = Pick<WorkoutLog, "id" | "title" | "performed_at">;
 
 /** Separate "how did it feel?" entry — can be filled later and tied to any recent workout (or none). */
-export function RecoverySheet({ open, onClose, onSaved, log }: Props) {
+export function RecoverySheet({ open, onClose, onSaved, log, askDifficulty }: Props) {
   const { profile } = useProfile();
   return (
     <Sheet open={open} onClose={onClose} title={log ? `איך היה ב${log.title}?` : g(profile.gender, "איך את מרגישה?", "איך אתה מרגיש?")}>
-      {open && <Form log={log} onDone={() => { onSaved?.(); onClose(); }} />}
+      {open && <Form log={log} askDifficulty={!!askDifficulty && !!log} onDone={() => { onSaved?.(); onClose(); }} />}
     </Sheet>
   );
 }
 
-function Form({ log, onDone }: { log?: WorkoutLog | null; onDone: () => void }) {
+function Form({ log, askDifficulty, onDone }: { log?: WorkoutLog | null; askDifficulty: boolean; onDone: () => void }) {
   const { profile } = useProfile();
+  const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
   const [feeling, setFeeling] = useState<Feeling | null>(null);
   const [body, setBody] = useState<BodyState | null>(null);
   const [notes, setNotes] = useState("");
@@ -46,12 +47,18 @@ function Form({ log, onDone }: { log?: WorkoutLog | null; onDone: () => void }) 
     })();
   }, [log]);
 
+  const ready = !!feeling && !!body && (!askDifficulty || !!difficulty);
+
   async function save() {
-    if (!feeling || !body) return;
+    if (!feeling || !body || !ready) return;
     setSaving(true);
-    const { error } = await db().from("recovery_logs").insert({ user_id: await userId(), log_id: logId, feeling, body_state: body, notes: notes || null });
+    const supabase = db();
+    const [{ error }, diff] = await Promise.all([
+      supabase.from("recovery_logs").insert({ user_id: await userId(), log_id: logId, feeling, body_state: body, notes: notes || null }),
+      askDifficulty && log && difficulty ? supabase.from("workout_logs").update({ difficulty }).eq("id", log.id) : Promise.resolve({ error: null }),
+    ]);
     setSaving(false);
-    if (error) return alert("השמירה נכשלה");
+    if (error || diff.error) return alert("השמירה נכשלה");
     onDone();
   }
 
@@ -59,6 +66,17 @@ function Form({ log, onDone }: { log?: WorkoutLog | null; onDone: () => void }) 
 
   return (
     <div className="space-y-5">
+      {askDifficulty && (
+        <div>
+          <p className="mb-2 text-sm font-semibold">איך היה הקושי?</p>
+          <div role="group" aria-label="איך היה הקושי?" className="grid grid-cols-3 gap-2">
+            {DIFFICULTIES.map((d) => (
+              <button key={d.id} type="button" aria-pressed={difficulty === d.id} onClick={() => setDifficulty(d.id)} className={`${option(difficulty === d.id)} justify-center`}>{d.label}</button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-muted">ככה נדע אם להוסיף או להוריד באימון הבא.</p>
+        </div>
+      )}
       <div>
         <p className="mb-2 text-sm font-semibold">על איזה אימון?</p>
         {logs === null ? (
@@ -98,7 +116,7 @@ function Form({ log, onDone }: { log?: WorkoutLog | null; onDone: () => void }) 
         <span className="mb-1.5 block text-sm font-semibold">משהו לציין? (איפה תפוס, מה כאב)</span>
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-2xl border border-border bg-surface-2 px-4 py-3 outline-none" />
       </label>
-      <Button size="lg" className="w-full" disabled={!feeling || !body} loading={saving} onClick={save}>שמירה</Button>
+      <Button size="lg" className="w-full" disabled={!ready} loading={saving} onClick={save}>שמירה</Button>
     </div>
   );
 }

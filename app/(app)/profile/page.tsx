@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Stepper } from "@/components/ui/field";
 import { PushToggle } from "@/components/push-toggle";
 import { db } from "@/lib/db";
-import { EQUIPMENT, GOALS, VIBES, g } from "@/lib/labels";
+import { CONDITIONING, EQUIPMENT, EXPERIENCE, GOALS, VIBES, g } from "@/lib/labels";
 
 export default function ProfilePage() {
   const { profile, setProfile } = useProfile();
@@ -41,6 +41,10 @@ export default function ProfilePage() {
   }
 
   const label = (list: { id: string; label: string }[], ids: string[]) => ids.map((i) => list.find((x) => x.id === i)?.label ?? i).join(" · ") || "—";
+  const say = (list: { id: string; f: string; m: string }[], id: string | null) => {
+    const row = list.find((x) => x.id === id);
+    return row ? g(profile.gender, row.f, row.m) : null;
+  };
 
   return (
     <main className="space-y-4">
@@ -57,6 +61,10 @@ export default function ProfilePage() {
           {profile.weekly_minutes_goal && <><dt className="text-muted">יעד דקות</dt><dd className="font-semibold">{profile.weekly_minutes_goal} דק׳</dd></>}
           <dt className="text-muted">ציוד</dt><dd className="font-semibold">{label(EQUIPMENT, profile.equipment)}</dd>
           {profile.equipment.includes("dumbbells") && profile.dumbbell_pairs !== null && <><dt className="text-muted">משקולות יד</dt><dd className="font-semibold">{profile.dumbbell_pairs ? "זוג מכל משקל" : "אחת מכל משקל"}</dd></>}
+          {profile.equipment.includes("kettlebells") && profile.kettlebell_pairs !== null && <><dt className="text-muted">קטלבל</dt><dd className="font-semibold">{profile.kettlebell_pairs ? "זוג מכל משקל" : "אחד מכל משקל"}</dd></>}
+          {profile.training_experience && <><dt className="text-muted">ניסיון</dt><dd className="font-semibold">{say(EXPERIENCE, profile.training_experience)}</dd></>}
+          {profile.conditioning && <><dt className="text-muted">כושר</dt><dd className="font-semibold">{say(CONDITIONING, profile.conditioning)}</dd></>}
+          {profile.owned_weights?.length > 0 && <><dt className="text-muted">משקלים</dt><dd className="font-semibold">{profile.owned_weights.map(Number).sort((a, b) => a - b).join(", ")} ק״ג</dd></>}
           <dt className="text-muted">מטרות</dt><dd className="font-semibold">{label(GOALS, profile.goals)}</dd>
           <dt className="text-muted">{g(profile.gender, "אוהבת", "אוהב")}</dt><dd className="font-semibold">{label(VIBES, profile.vibes)}</dd>
         </dl>

@@ -2,10 +2,10 @@
 
 import { format } from "date-fns";
 import { exerciseOr } from "@/lib/exercise-or";
-import { cooldownCount, fitsLevel, FOCUS_LABEL, GENERATED_VIBES, mainCount, muscleOrder, pickExercises, pickPreferring, STRETCH, usableWithGear, volumeFor, WARMUP, type Focus } from "@/lib/generate";
-import { muscleLabel, vibeLabel } from "@/lib/labels";
+import { cooldownCount, fitsLevel, FOCUS_LABEL, GENERATED_VIBES, mainCount, muscleOrder, pickMain, pickPreferring, progressFor, restFor, STRETCH, trainingSignals, usableWithGear, volumeFor, WARMUP, weekRow, type Focus, type GearCounts } from "@/lib/generate";
+import { intensityFor, muscleLabel, needsWeight, vibeLabel } from "@/lib/labels";
+import { chosenWork, suggestWeight, type LoggedSet } from "@/lib/progression";
 import { createClient } from "@/lib/supabase/client";
-import type { LoggedSet } from "@/lib/progression";
 import type { Exercise, Phase, Profile, ScheduledWorkout, TemplateExercise, Vibe, WorkoutLog, WorkoutPlan, WorkoutTemplate } from "@/lib/types";
 
 export const db = () => createClient();
@@ -64,8 +64,14 @@ export async function setHistory(): Promise<Map<string, LoggedSet[][]>> {
   return m;
 }
 
-/** Plan context: `goals` set the rep scheme, `level` caps difficulty (unset = any), `week` (0-3) sets the volume. `muscle` overrides `focus`. */
-export type WorkoutOpts = { minutes: number; vibe: Vibe; equipment: string[]; focus?: Focus; muscle?: string; goals?: string[]; level?: number; week?: number };
+/** Pace and too-easy/too-hard bias from the newest logs (see trainingSignals). */
+export async function recentSignals(goals: string[]) {
+  const { data } = await db().from("workout_logs").select("duration_min, exercises_done, difficulty, is_external").order("performed_at", { ascending: false }).limit(10);
+  return trainingSignals((data ?? []) as Parameters<typeof trainingSignals>[0], restFor(goals));
+}
+
+/** Plan context: `goals` set the rep scheme, `level` caps difficulty (unset = any), `week` (0-3) sets the volume. `muscle` overrides `focus`. `core` unset = no question asked. */
+export type WorkoutOpts = { minutes: number; vibe: Vibe; equipment: string[]; focus?: Focus; muscle?: string; goals?: string[]; level?: number; week?: number; core?: boolean };
 
 const EXTRAS_OR = ["stretch", "jumping jack", "jog", "march", "arm circle", "high knee", "butt kick", "inchworm", "leg swing", "cat%cow"].map((n) => `name.ilike.%${n}%`).join(",");
 /** Warm-up and stretch candidates; fetched separately so the 300-row main pool can't crowd them out. */
@@ -79,13 +85,20 @@ const row = (e: Exercise, i: number, phase: Phase, sets: number, reps: number | 
   id: `quick-${i}`, template_id: "", exercise_id: e.id, exercise: e, custom_name: null, position: i, notes: null, weight_kg: null, phase, sets, reps, duration_sec,
 });
 
-/** The same workout at another plan week's volume (main block only). */
-export function withWeek(t: TemplateWithExercises, week: number, goals: string[]): TemplateWithExercises {
-  const v = volumeFor(week, goals);
-  return {
-    ...t,
-    template_exercises: t.template_exercises.map((r) => r.phase !== "main" ? r : { ...r, sets: v.sets, reps: r.reps == null ? null : v.reps, duration_sec: r.duration_sec == null ? null : v.durationSec }),
-  };
+/** The same workout at another plan week's volume (main block only). Pinned exercises keep their reps. */
+export function withWeek(t: TemplateWithExercises, week: number, goals: string[], pinned: ReadonlySet<number> = new Set()): TemplateWithExercises {
+  return { ...t, template_exercises: t.template_exercises.map((r) => weekRow(r, week, goals, pinned)) };
+}
+
+/** Exercises whose last log should pin reps across the plan's weeks. */
+export function rememberedExerciseIds(rows: { phase: string; exercise_id: number | null }[], history: Map<string, LoggedSet[][]>): Set<number> {
+  const ids = new Set<number>();
+  for (const r of rows) {
+    if (r.phase !== "main" || r.exercise_id == null) continue;
+    const c = chosenWork(history.get(String(r.exercise_id)));
+    if (c.reps != null || c.kg != null) ids.add(r.exercise_id);
+  }
+  return ids;
 }
 
 /** Profile defaults for the single-workout questions. */
@@ -96,26 +109,38 @@ export const defaultWorkoutOpts = (profile: Profile): WorkoutOpts => ({
 });
 
 /** An unsaved template sized to the time available: warm-up, one exercise per main muscle, cool-down stretches. */
-export async function generateWorkout(profile: Profile, o: WorkoutOpts): Promise<TemplateWithExercises> {
+export async function generateWorkout(profile: Profile, o: WorkoutOpts, history?: Map<string, LoggedSet[][]>): Promise<TemplateWithExercises> {
   const focus = o.focus ?? "full";
   const goals = o.goals ?? profile.goals;
+  const intensity = intensityFor(profile.conditioning);
   const base = {
-    id: "", user_id: profile.id, vibe: o.vibe, intensity: "moderate" as const, est_minutes: o.minutes, notes: null, created_at: "",
+    id: "", user_id: profile.id, vibe: o.vibe, intensity, est_minutes: o.minutes, notes: null, created_at: "",
   };
   if (!GENERATED_VIBES.includes(o.vibe)) return { ...base, name: vibeLabel(o.vibe), muscle_groups: [], template_exercises: [] };
 
   const gear = [...new Set(["bodyweight", "mat", ...o.equipment])];
   // Nearly all stretches are filed under "other" and need nothing but a wall or chair.
-  const [pool, extras] = await Promise.all([
+  const [pool, extras, past, signals] = await Promise.all([
     searchExercises({ categories: gear, muscles: o.muscle ? [o.muscle] : undefined, limit: 300 }),
     extrasPool([...gear, "other"]),
+    history ? Promise.resolve(history) : setHistory(),
+    recentSignals(goals),
   ]);
   const candidates = pool.filter((e) => !WARMUP.test(e.name) && !STRETCH.test(e.name) && (o.level === undefined || fitsLevel(e, o.level)));
-  const pairs = o.equipment.includes("dumbbells") ? profile.dumbbell_pairs : null;
+  const counts: GearCounts = {
+    dumbbells: o.equipment.includes("dumbbells") ? profile.dumbbell_pairs : null,
+    kettlebells: o.equipment.includes("kettlebells") ? profile.kettlebell_pairs : null,
+  };
+  const v = volumeFor(o.week ?? 0, goals);
+  const timed = o.vibe !== "strength";
+  const count = mainCount(o.minutes, {
+    sets: v.sets, reps: timed ? null : v.reps, durationSec: timed ? v.durationSec : null, rest: restFor(goals), pace: signals.pace,
+    bias: signals.bias - (profile.conditioning === "low" ? 1 : 0),
+  });
   // One muscle: several different exercises for it, not one per muscle.
   const main = o.muscle
-    ? pickPreferring(candidates.filter((e) => e.images.length && usableWithGear(e, pairs)), mainCount(o.minutes), [])
-    : pickExercises(candidates, mainCount(o.minutes), muscleOrder(focus, profile.gender), pairs);
+    ? pickPreferring(candidates.filter((e) => e.images.length && usableWithGear(e, counts)), count, [])
+    : pickMain(candidates, count, muscleOrder(focus, profile.gender), counts, o.core, o.minutes);
   const muscles = main.flatMap((e) => e.muscles);
   const used = new Set(main.map((e) => e.id));
   // ponytail: only ~8 named warm-ups in the DB; easy bodyweight moves fill the gap.
@@ -125,13 +150,21 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts): Promise
   ].slice(0, 2);
   const cooldown = pickPreferring(extras.filter((e) => STRETCH.test(e.name)), cooldownCount(goals), muscles);
 
-  const v = volumeFor(o.week ?? 0, goals);
-  const timed = o.vibe !== "strength";
+  const progress = progressFor(intensity, o.vibe, goals, signals.bias);
+  const owned = profile.owned_weights ?? [];
   const rows = [
     ...warmup.map((e) => [e, "warmup", 1, null, 45] as const),
     ...main.map((e) => [e, "main", v.sets, timed ? null : v.reps, timed ? v.durationSec : null] as const),
     ...cooldown.map((e) => [e, "cooldown", 1, null, 30] as const),
-  ].map(([e, phase, sets, reps, dur], i) => row(e, i, phase, sets, reps, dur));
+  ].map(([e, phase, sets, reps, dur], i) => {
+    const built = row(e, i, phase, sets, reps, dur);
+    if (phase !== "main") return built;
+    const h = past.get(exerciseKey({ exercise_id: e.id, name: e.name }));
+    const chosen = chosenWork(h);
+    const weighted = needsWeight(e.category);
+    const tip = weighted ? suggestWeight(h ?? [], chosen.reps ?? reps, progress, e.category, owned) : null;
+    return { ...built, reps: reps != null && chosen.reps ? chosen.reps : reps, weight_kg: weighted ? tip?.kg ?? chosen.kg ?? null : null };
+  });
 
   return { ...base, name: `${vibeLabel(o.vibe)} · ${o.muscle ? muscleLabel(o.muscle) : FOCUS_LABEL[focus]}`, muscle_groups: main.map((e) => e.muscles[0]), template_exercises: rows };
 }
@@ -147,7 +180,7 @@ export async function saveGeneratedTemplate(t: TemplateWithExercises): Promise<s
   if (error || !data) throw error ?? new Error("template insert failed");
   if (t.template_exercises.length) {
     const { error: exErr } = await supabase.from("template_exercises").insert(
-      t.template_exercises.map(({ exercise_id, position, sets, reps, duration_sec, phase }) => ({ template_id: data.id, exercise_id, position, sets, reps, duration_sec, phase })),
+      t.template_exercises.map(({ exercise_id, position, sets, reps, duration_sec, weight_kg, phase }) => ({ template_id: data.id, exercise_id, position, sets, reps, duration_sec, weight_kg, phase })),
     );
     if (exErr) throw exErr;
   }

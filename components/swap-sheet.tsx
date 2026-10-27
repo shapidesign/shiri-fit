@@ -32,9 +32,12 @@ function List({ exercise, phase, exclude, onPreview, onSwap }: Omit<Props, "onCl
 
   useEffect(() => {
     const categories = [...new Set(["bodyweight", "mat", ...profile.equipment, exercise.category ?? "other", ...(phase === "cooldown" ? ["other"] : [])])];
-    const pairs = profile.equipment.includes("dumbbells") ? profile.dumbbell_pairs : null;
+    const gear = {
+      dumbbells: profile.equipment.includes("dumbbells") ? profile.dumbbell_pairs : null,
+      kettlebells: profile.equipment.includes("kettlebells") ? profile.kettlebell_pairs : null,
+    };
     searchExercises({ muscles: muscle ? [muscle] : undefined, categories, limit: 200 }).then((res) => setItems(
-      res.filter((e) => e.id !== exercise.id && !exclude.includes(e.id) && e.images.length && usableWithGear(e, pairs)
+      res.filter((e) => e.id !== exercise.id && !exclude.includes(e.id) && e.images.length && usableWithGear(e, gear)
         && (phase === "cooldown" ? STRETCH.test(e.name) : phase === "main" ? !STRETCH.test(e.name) && !WARMUP.test(e.name) : !STRETCH.test(e.name)))
         .slice(0, 20),
     ));

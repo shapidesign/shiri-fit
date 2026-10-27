@@ -8,11 +8,10 @@ import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, Stepper } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { useProfile } from "@/components/profile-provider";
-import { syncCalendar } from "@/lib/calendar-client";
 import { celebrate } from "@/lib/celebrate";
-import { db, userId } from "@/lib/db";
 import { INTENSITIES, VIBES } from "@/lib/labels";
 import { estimateCalories } from "@/lib/met";
+import { saveWorkoutLog } from "@/lib/save-log";
 import type { ExerciseDone, Intensity, ScheduledWorkout, Vibe, WorkoutLog } from "@/lib/types";
 
 type Session = { title: string; vibe: Vibe; intensity: Intensity; minutes: number; exercises: ExerciseDone[]; templateId?: string | null };
@@ -49,6 +48,7 @@ function Form({ scheduled, session, onSaved }: { scheduled?: ScheduledWorkout | 
   const [external, setExternal] = useState(scheduled?.source === "external");
   const [notes, setNotes] = useState("");
   const [kcalOverride, setKcalOverride] = useState<number | null>(null);
+  const [countForPlan, setCountForPlan] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const kcal = useMemo(() => estimateCalories({ vibe, intensity, minutes, weightKg: profile.weight_kg }), [vibe, intensity, minutes, profile.weight_kg]);
@@ -56,30 +56,16 @@ function Form({ scheduled, session, onSaved }: { scheduled?: ScheduledWorkout | 
   async function save() {
     if (!title.trim()) return;
     setSaving(true);
-    const supabase = db();
-    const { data, error } = await supabase
-      .from("workout_logs")
-      .insert({
-        user_id: await userId(),
-        scheduled_id: scheduled?.id ?? null,
-        template_id: session?.templateId ?? scheduled?.template_id ?? null,
-        title: title.trim(),
-        performed_at: new Date(when).toISOString(),
-        duration_min: minutes,
-        vibe,
-        intensity,
-        calories: kcalOverride ?? kcal,
-        is_external: external,
-        exercises_done: session?.exercises ?? [],
-        notes: notes || null,
-      })
-      .select("*")
-      .single();
-    if (error || !data) { setSaving(false); return alert("השמירה נכשלה"); }
-    if (scheduled) await supabase.from("scheduled_workouts").update({ status: "done" }).eq("id", scheduled.id);
-    // Planned workouts already have a calendar event; spontaneous ones get a retroactive one.
-    if (!scheduled && profile.calendar_sync) void syncCalendar("log", data.id);
-    onSaved(data as WorkoutLog);
+    try {
+      const log = await saveWorkoutLog({
+        scheduled, title: title.trim(), performedAt: new Date(when), minutes, vibe, intensity, calories: kcalOverride ?? kcal,
+        external, exercises: session?.exercises, notes, templateId: session?.templateId, countForPlan, calendarSync: profile.calendar_sync,
+      });
+      onSaved(log);
+    } catch {
+      setSaving(false);
+      alert("השמירה נכשלה");
+    }
   }
 
   return (
@@ -105,6 +91,16 @@ function Form({ scheduled, session, onSaved }: { scheduled?: ScheduledWorkout | 
         <span className="text-sm font-semibold">אימון חיצוני (סטודיו / קופ״ח)</span>
         <input type="checkbox" checked={external} onChange={(e) => setExternal(e.target.checked)} className="h-5 w-5 accent-[var(--accent)]" />
       </label>
+
+      {!scheduled && (
+        <label className="flex items-center justify-between rounded-2xl border border-border bg-surface-2 px-4 py-3">
+          <span>
+            <span className="block text-sm font-semibold">נחשב לתוכנית</span>
+            <span className="block text-xs text-muted">מחליף את האימון הבא בתוכנית, אם יש</span>
+          </span>
+          <input type="checkbox" checked={countForPlan} onChange={(e) => setCountForPlan(e.target.checked)} className="h-5 w-5 accent-[var(--accent)]" />
+        </label>
+      )}
 
       <label className="block">
         <span className="mb-1.5 block text-sm font-semibold">הערות</span>

@@ -59,7 +59,7 @@ export default function PlanPage() {
   const dayItems = forDay(selected);
 
   async function setStatus(w: ScheduledWorkout, status: ScheduledWorkout["status"]) {
-    const { error } = await db().from("scheduled_workouts").update({ status }).eq("id", w.id);
+    const { error } = await db().from("scheduled_workouts").update({ status, ...(status === "planned" && { off_plan: false }) }).eq("id", w.id);
     if (error) return alert("השמירה נכשלה");
     reload();
   }
@@ -150,7 +150,7 @@ export default function PlanPage() {
             {dayItems.map((w) => {
               const tone = statusTone(w, today);
               return (
-              <li key={w.id} className={`rounded-[24px] border-s-4 p-4 ${tone.border} ${w.status === "done" ? "bg-success/10" : w.status === "skipped" ? "bg-surface opacity-60" : "bg-surface"}`}>
+              <li key={w.id} className={`rounded-[24px] border-s-4 p-4 ${tone.border} ${w.status === "done" ? (w.off_plan ? "bg-info/10" : "bg-success/10") : w.status === "skipped" ? "bg-surface opacity-60" : "bg-surface"}`}>
                 <button className="w-full text-start" onClick={() => setSheet({ open: true, existing: w })}>
                   <p className="text-xs font-semibold text-muted">
                     {w.time?.slice(0, 5)} · {w.duration_min} דק׳ · {vibeLabel(w.vibe)} · {intensityLabel(w.intensity)}{w.source === "external" && " · חיצוני"}

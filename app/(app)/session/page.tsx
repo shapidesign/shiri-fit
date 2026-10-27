@@ -16,6 +16,7 @@ export default async function SessionPage({ searchParams }: PageProps<"/session"
     equipment: str("eq")?.split(",").filter((e) => EQUIPMENT.some((x) => x.id === e)),
     focus: focus && focus in FOCUS_LABEL ? (focus as Focus) : undefined,
     muscle: MUSCLES.some((m) => m.id === muscle) ? muscle! : undefined,
+    core: str("core") === "1" ? true : str("core") === "0" ? false : undefined,
   } : null;
   return <SessionScreen scheduledId={str("scheduled")} templateId={str("template")} quick={quick} />;
 }

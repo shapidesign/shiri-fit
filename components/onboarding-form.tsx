@@ -30,6 +30,7 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
     birth_year: profile.birth_year ?? 1995,
     equipment: profile.equipment,
     dumbbell_pairs: profile.dumbbell_pairs,
+    kettlebell_pairs: profile.kettlebell_pairs,
     days_per_week: profile.days_per_week,
     goals: profile.goals,
     vibes: profile.vibes,
@@ -90,9 +91,9 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
       title: "איזה ציוד יש לך?",
       sub: "נציע תרגילים רק עם מה שבאמת יש בבית או בסטודיו.",
       body: (
-        <EquipmentPicker equipment={p.equipment} onEquipment={(e) => set("equipment", e)} pairs={p.dumbbell_pairs} onPairs={(v) => set("dumbbell_pairs", v)} />
+        <EquipmentPicker equipment={p.equipment} onEquipment={(e) => set("equipment", e)} pairs={p.dumbbell_pairs} onPairs={(v) => set("dumbbell_pairs", v)} kbPairs={p.kettlebell_pairs} onKbPairs={(v) => set("kettlebell_pairs", v)} />
       ),
-      valid: equipmentValid(p.equipment, p.dumbbell_pairs),
+      valid: equipmentValid(p.equipment, p.dumbbell_pairs, p.kettlebell_pairs),
     },
     {
       title: "כמה ומה המטרה?",

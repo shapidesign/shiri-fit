@@ -118,7 +118,7 @@ function Form({ date, existing, onDone }: Omit<Props, "open" | "onClose" | "onCh
 }
 
 /** The planned workout's exercises; each swaps for another one for the same muscle (saved right away). */
-function TemplateExercises({ templateId }: { templateId: string }) {
+export function TemplateExercises({ templateId }: { templateId: string }) {
   const [rows, setRows] = useState<TemplateWithExercises["template_exercises"] | null>(null);
   const [swapping, setSwapping] = useState<TemplateWithExercises["template_exercises"][number] | null>(null);
   useEffect(() => { getTemplate(templateId).then((t) => setRows(t?.template_exercises ?? [])); }, [templateId]);

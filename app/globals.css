@@ -18,6 +18,7 @@
   --danger: #f94a3d;
   --success: #2ae8b1;
   --warn: #f0c050;
+  --info: #4aa8ff;
   --ring-1: #e9f739;
   --ring-2: #2ae8b1;
   --ring-3: #f94a3d;
@@ -39,6 +40,7 @@
   --color-danger: var(--danger);
   --color-success: var(--success);
   --color-warn: var(--warn);
+  --color-info: var(--info);
   --font-sans: var(--font-simpler), system-ui, -apple-system, "Segoe UI", sans-serif;
   --radius-card: 24px;
   --radius-pill: 999px;

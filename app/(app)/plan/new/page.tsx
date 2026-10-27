@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Field, Stepper } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
-import { EquipmentPicker, equipmentValid, persistPairs } from "@/components/equipment-picker";
+import { CoreQuestion, EquipmentPicker, equipmentValid } from "@/components/equipment-picker";
 import { ReminderPrompt } from "@/components/reminder-prompt";
 import { useProfile } from "@/components/profile-provider";
 import { removeCalendarEvent, syncCalendar } from "@/lib/calendar-client";
 import { celebrate } from "@/lib/celebrate";
-import { db, defaultWorkoutOpts, generateWorkout, saveGeneratedTemplate, userId, withWeek } from "@/lib/db";
-import { nextLevel, planDates, planFocuses, weekIndex } from "@/lib/generate";
-import { DAY_NAMES, GOALS, VIBES, g } from "@/lib/labels";
-import type { Vibe } from "@/lib/types";
+import { db, defaultWorkoutOpts, generateWorkout, rememberedExerciseIds, saveGeneratedTemplate, setHistory, userId, withWeek } from "@/lib/db";
+import { GENERATED_VIBES, nextLevel, planDates, planFocuses, weekIndex } from "@/lib/generate";
+import { CONDITIONING, DAY_NAMES, EXPERIENCE, GOALS, OWNED_PRESETS, VIBES, experienceLevel, g } from "@/lib/labels";
+import type { Profile, Vibe } from "@/lib/types";
 
 /** Spread N training days over the week, starting Sunday. */
 const spreadDays = (n: number) => [[0], [0, 3], [0, 2, 4], [0, 1, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5, 6]][Math.min(7, Math.max(1, n)) - 1];
@@ -37,13 +37,26 @@ export default function NewPlanPage() {
   const [vibe, setVibe] = useState<Vibe>(d.vibe);
   const [equipment, setEquipment] = useState(d.equipment);
   const [pairs, setPairs] = useState(profile.dumbbell_pairs);
+  const [kbPairs, setKbPairs] = useState(profile.kettlebell_pairs);
+  const [core, setCore] = useState<boolean | null>(null);
+  const [experience, setExperience] = useState(profile.training_experience);
+  const [conditioning, setConditioning] = useState(profile.conditioning);
+  const [owned, setOwned] = useState<number[]>((profile.owned_weights ?? []).map(Number).filter((n) => n > 0));
+  const [extraKg, setExtraKg] = useState("");
   const [saving, setSaving] = useState(false);
   const [remind, setRemind] = useState(false);
 
   const startDate = new Date(`${start}T00:00`);
   const dates = planDates(startDate, weekdays);
   const targetWorkouts = target ?? dates.length;
-  const level = nextLevel(prev);
+  const needsWeights = ["dumbbells", "kettlebells", "barbell"].some((id) => equipment.includes(id));
+  const toggleWeight = (n: number) => setOwned((w) => (w.includes(n) ? w.filter((x) => x !== n) : [...w, n].sort((a, b) => a - b)));
+  const addWeight = () => {
+    const n = Math.round(Number(extraKg) * 2) / 2;
+    if (!n || n <= 0 || n > 200) return;
+    setOwned((w) => (w.includes(n) ? w : [...w, n].sort((a, b) => a - b)));
+    setExtraKg("");
+  };
 
   // The latest plan that already started decides this one's level.
   useEffect(() => {
@@ -58,8 +71,9 @@ export default function NewPlanPage() {
 
   const steps = [
     {
+      id: "goals",
       title: "מה המטרות שלך החודש?",
-      sub: prev && level > prev.level ? `השלמת ${prev.done}/${prev.target} בחודש הקודם — עולים רמה` : "עד 3 מטרות. הראשונה קובעת את מספר החזרות.",
+      sub: "עד 3 מטרות. הראשונה קובעת את מספר החזרות.",
       body: (
         <ChipRow>
           {GOALS.map((x) => {
@@ -71,6 +85,7 @@ export default function NewPlanPage() {
       valid: goals.length > 0,
     },
     {
+      id: "days",
       title: "באילו ימים?",
       sub: `${dates.length} אימונים ב-4 שבועות.`,
       body: (
@@ -89,23 +104,60 @@ export default function NewPlanPage() {
       valid: weekdays.length > 0 && !!start,
     },
     {
+      id: "workouts",
       title: "איזה אימונים?",
       sub: "אפשר לשנות כל אימון אחר כך בלוח.",
       body: (
         <div className="space-y-5">
           <Stepper label="אורך אימון" value={minutes} onChange={setMinutes} min={10} max={120} step={5} suffix="דק׳" />
           <ChipRow>{VIBES.filter((v) => v.id !== "other").map((v) => <Chip key={v.id} selected={vibe === v.id} onClick={() => setVibe(v.id)}>{v.label}</Chip>)}</ChipRow>
+          {GENERATED_VIBES.includes(vibe) && <CoreQuestion value={core} onChange={setCore} />}
         </div>
       ),
-      valid: true,
+      valid: !GENERATED_VIBES.includes(vibe) || core !== null,
     },
     {
+      id: "gear",
       title: "עם איזה ציוד?",
       sub: "נבחר רק תרגילים שאפשר לעשות עם מה שיש.",
-      body: <EquipmentPicker equipment={equipment} onEquipment={setEquipment} pairs={pairs} onPairs={setPairs} />,
-      valid: equipmentValid(equipment, pairs),
+      body: <EquipmentPicker equipment={equipment} onEquipment={setEquipment} pairs={pairs} onPairs={setPairs} kbPairs={kbPairs} onKbPairs={setKbPairs} />,
+      valid: equipmentValid(equipment, pairs, kbPairs),
     },
     {
+      id: "ability",
+      title: t("איפה את היום?", "איפה אתה היום?"),
+      sub: prev ? `בחודש שעבר השלמת ${prev.done}/${prev.target}. זה קובע את רמת התרגילים.` : "זה קובע את רמת התרגילים ואת המשקלים.",
+      body: (
+        <div className="space-y-5">
+          <div>
+            <p className="mb-2 text-sm font-semibold">כמה זמן {t("את מתאמנת", "אתה מתאמן")}?</p>
+            <ChipRow>{EXPERIENCE.map((x) => <Chip key={x.id} selected={experience === x.id} onClick={() => setExperience(x.id)}>{t(x.f, x.m)}</Chip>)}</ChipRow>
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-semibold">איך מרגיש מאמץ?</p>
+            <ChipRow>{CONDITIONING.map((x) => <Chip key={x.id} selected={conditioning === x.id} onClick={() => setConditioning(x.id)}>{t(x.f, x.m)}</Chip>)}</ChipRow>
+          </div>
+          {needsWeights && (
+            <div>
+              <p className="mb-2 text-sm font-semibold">אילו משקלים יש לך?</p>
+              <p className="mb-2 text-xs text-muted">נציע רק מאלה.</p>
+              <ChipRow>
+                {[...OWNED_PRESETS, ...owned.filter((n) => !OWNED_PRESETS.includes(n))].map((n) => (
+                  <Chip key={n} selected={owned.includes(n)} onClick={() => toggleWeight(n)}>{n} ק״ג</Chip>
+                ))}
+              </ChipRow>
+              <div className="mt-3 flex items-end gap-2">
+                <Field className="flex-1" label="משקל אחר" name="custom_kg" type="number" inputMode="decimal" suffix="ק״ג" value={extraKg} onChange={(e) => setExtraKg(e.target.value)} />
+                <Button variant="secondary" onClick={addWeight}>הוספה</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      ),
+      valid: !!experience && !!conditioning && (!needsWeights || owned.length > 0),
+    },
+    {
+      id: "target",
       title: "היעד לחודש",
       sub: t("משהו מדיד שתרצי לראות בסוף החודש.", "משהו מדיד שתרצה לראות בסוף החודש."),
       body: (
@@ -118,13 +170,32 @@ export default function NewPlanPage() {
     },
   ];
   const last = step === steps.length - 1;
+  const abilityPatch = { dumbbell_pairs: pairs, kettlebell_pairs: kbPairs, training_experience: experience, conditioning, owned_weights: owned };
+
+  async function saveAbility() {
+    setProfile({ ...profile, ...abilityPatch });
+    const { error } = await db().from("profiles").update(abilityPatch).eq("id", profile.id);
+    if (error) throw error;
+  }
+
+  async function advance() {
+    if (steps[step].id === "ability") {
+      setSaving(true);
+      try { await saveAbility(); } catch { setSaving(false); return alert("השמירה נכשלה"); }
+      setSaving(false);
+    }
+    if (last) return save();
+    setStep(step + 1);
+  }
 
   async function save() {
     setSaving(true);
     try {
       const supabase = db();
       const uid = await userId();
-      await persistPairs(profile, setProfile, pairs);
+      await saveAbility();
+      const level = experienceLevel(experience) ?? nextLevel(prev);
+      const who: Profile = { ...profile, ...abilityPatch };
 
       // One active plan at a time: a new one takes over the old plan's remaining planned workouts.
       const { data: old } = await supabase.from("workout_plans").select("id").gte("ends_on", start);
@@ -144,13 +215,15 @@ export default function NewPlanPage() {
 
       // Same exercises all month per A/B/C workout; each week gets its own template with more volume (weights rise from logged sets).
       const focuses = planFocuses(weekdays.length);
+      const history = await setHistory();
       const workouts = await Promise.all(focuses.map(async (focus, i) => {
-        const w = await generateWorkout({ ...profile, dumbbell_pairs: pairs }, { minutes, vibe, equipment, focus, goals, level });
+        const w = await generateWorkout(who, { minutes, vibe, equipment, focus, goals, level, ...(core !== null ? { core } : {}) }, history);
+        const pinned = rememberedExerciseIds(w.template_exercises, history);
         const name = focuses.length > 1 && w.template_exercises.length ? `${"ABC"[i]} · ${w.name}` : w.name;
         return Promise.all([0, 1, 2, 3].map(async (week) => ({
           name: w.template_exercises.length ? `${name} · שבוע ${week + 1}` : name,
           intensity: w.intensity,
-          templateId: w.template_exercises.length ? await saveGeneratedTemplate({ ...withWeek(w, week, goals), name: `${name} · שבוע ${week + 1}` }) : null,
+          templateId: w.template_exercises.length ? await saveGeneratedTemplate({ ...withWeek(w, week, goals, pinned), name: `${name} · שבוע ${week + 1}` }) : null,
         })));
       }));
       const { data: rows, error: rowsErr } = await supabase.from("scheduled_workouts").insert(dates.map((date, i) => {
@@ -178,7 +251,7 @@ export default function NewPlanPage() {
       <div className="flex-1">{steps[step].body}</div>
       <div className="mt-8 flex gap-3">
         {step > 0 && <Button variant="secondary" onClick={() => setStep(step - 1)}>חזרה</Button>}
-        <Button className="flex-1" disabled={!steps[step].valid} loading={saving} onClick={() => (last ? save() : setStep(step + 1))}>
+        <Button className="flex-1" disabled={!steps[step].valid} loading={saving} onClick={() => void advance()}>
           {last ? "יצירת התוכנית" : "הבא"}
         </Button>
       </div>
