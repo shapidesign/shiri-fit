@@ -17,7 +17,7 @@ import { clearDraft, discardDraft, readDraft, replaceDraft } from "@/lib/active-
 import { db, defaultWorkoutOpts, exerciseKey, generateWorkout, getTemplate, recentSignals, setHistory, swapTemplateExercise, type TemplateWithExercises, type WorkoutOpts } from "@/lib/db";
 import { celebrate } from "@/lib/celebrate";
 import { progressFor, restFor } from "@/lib/generate";
-import { g, muscleLabel, needsWeight, PHASE_LABEL, vibeLabel } from "@/lib/labels";
+import { durationLabel, g, muscleLabel, needsWeight, PHASE_LABEL, vibeLabel } from "@/lib/labels";
 import { chosenWork, suggestWeight, type LoggedSet, type Suggestion } from "@/lib/progression";
 import { saveWorkoutLog } from "@/lib/save-log";
 import type { Exercise, ExerciseDone, ScheduledWorkout, WorkoutLog } from "@/lib/types";
@@ -222,7 +222,7 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
                   <button type="button" onClick={() => r.exercise && setDetail(r.exercise)} className="min-w-0 flex-1 text-start">
                     <p className="truncate text-lg font-bold">{name}</p>
                     <p className="text-xs text-muted">
-                      {r.reps ? `${rowSets.length} × ${r.reps} חזרות` : r.duration_sec ? `${rowSets.length} × ${r.duration_sec} שנ׳` : `${rowSets.length} סטים`}
+                      {r.reps ? `${rowSets.length} × ${r.reps} חזרות` : r.duration_sec ? `${rowSets.length} × ${durationLabel(r.duration_sec)}` : `${rowSets.length} סטים`}
                       {r.exercise && ` · ${r.exercise.muscles.map(muscleLabel).join(", ")}`}
                     </p>
                     {tip && <p className="mt-1 text-xs font-semibold">המלצה: {tip.kg} ק״ג · <span className="font-normal text-muted">{tip.why}</span></p>}
@@ -242,7 +242,7 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
                       </span>
                       {!timed && <div className="flex-1"><Mini label="חזרות" value={s.reps ?? null} onChange={(v) => edit(r.id, i, { reps: v ?? undefined })} /></div>}
                       {!timed && weighted(r) && <div className="flex-1"><Mini label="ק״ג" step="0.5" placeholder="—" value={s.weight_kg ?? null} onChange={(v) => edit(r.id, i, { weight_kg: v ?? undefined })} /></div>}
-                      {timed && <span className="mb-2 flex-1 text-sm text-muted">{r.duration_sec} שנ׳</span>}
+                      {timed && <span className="mb-2 flex-1 text-sm text-muted">{durationLabel(r.duration_sec!)}</span>}
                       {tick(r, i, s.done)}
                     </li>
                   ))}

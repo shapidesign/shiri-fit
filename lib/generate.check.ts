@@ -1,8 +1,12 @@
 // Run: npx tsx lib/generate.check.ts
 import assert from "node:assert/strict";
-import { fitsLevel, logPace, mainCount, nextLevel, partsOrder, pickExercises, pickMain, pickWarmup, planDates, planFocuses, progressFor, trainingSignals, usableWithGear, volumeFor, warmupBucket, weekIndex, weekRow } from "./generate";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { cardioSeconds, fitsLevel, logPace, mainCount, nextLevel, partsOrder, pickExercises, pickMain, pickWarmup, planDates, planFocuses, progressFor, splitMinutes, swapCandidates, trainingSignals, usableWithGear, volumeFor, warmupBucket, warmupSeconds, weekIndex, weekRow } from "./generate";
 import { nameKey } from "./exercise-normalize";
-import { needsWeight } from "./labels";
+import { durationLabel, needsWeight } from "./labels";
+import { reminderCopy } from "./nudge";
 import type { Exercise, ExerciseDone } from "./types";
 
 // One exercise = 3 × (12 reps × 3 s) + 30 s switch + 3 × 60 s rest ≈ 5.3 min.
@@ -135,5 +139,37 @@ assert.equal(dates[0], "2026-10-25");
 assert.equal(dates.at(-1), "2026-11-19");
 assert.deepEqual(planFocuses(3), ["lower", "upper", "full"]);
 assert.deepEqual(dates.map((d) => weekIndex(new Date("2026-10-23T00:00"), d)), [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3]);
+
+const bout = weekRow({ phase: "main", exercise_id: null, reps: null, sets: 1, duration_sec: 300 }, 2, ["tone"], new Set());
+assert.equal(bout.duration_sec, 300, "a cardio bout is not shrunk to an interval");
+assert.equal(bout.sets, 1);
+assert.equal(cardioSeconds(15), 240);
+assert.equal(cardioSeconds(45), 300);
+assert.equal(cardioSeconds(60), 360);
+assert.equal(warmupSeconds("Recumbent Bike", 45), 300);
+assert.equal(warmupSeconds("Inchworm", 45), 45);
+assert.equal(durationLabel(45), "45 שנ׳");
+assert.equal(durationLabel(300), "5 דק׳");
+
+const bike = ex(3, "Bicycling, Stationary", "machine", "quads");
+const inch = ex(1, "Inchworm", "bodyweight", "hamstrings");
+const squat = ex(6, "Squat", "bodyweight", "quads");
+const curl = ex(11, "Dumbbell Curl", "dumbbells", "biceps");
+assert.equal(swapCandidates([bike, inch, squat], bike, "warmup", []).some((e) => e.id === inch.id), true, "a bike warm-up can become another warm-up");
+assert.equal(swapCandidates([curl], curl, "main", []).some((e) => e.id === curl.id), false);
+assert.equal(swapCandidates([curl, squat], curl, "main", []).some((e) => e.id === squat.id), true, "bodyweight is always a fallback");
+assert.equal(pickWarmup([bike, inch], { cardio: false }).some((e) => e.id === bike.id), false);
+
+assert.deepEqual(splitMinutes(45, 50, false, true), [23, 22]);
+assert.deepEqual(splitMinutes(45, 80, false, true), [36, 9]);
+assert.deepEqual(splitMinutes(20, 80, false, true), [15, 5], "a small cardio share still gets 5 minutes");
+assert.deepEqual(splitMinutes(45, 70, true, false), [32, 13]);
+
+assert.equal(reminderCopy("", "female", "שירי כהן"), "שירי יא אלופה, בואי נתאמן");
+assert.equal(reminderCopy("", "male", "דני"), "דני יא אלוף, בוא נתאמן");
+assert.equal(reminderCopy("workout-1", "female", "שירי"), reminderCopy("workout-1", null, "שירי"));
+
+const he = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../scripts/exercises-he.json"), "utf8");
+assert.equal(he.includes("ביצפס"), false);
 
 console.log("generate checks ok");

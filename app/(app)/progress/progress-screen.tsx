@@ -13,7 +13,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { removeCalendarEvent } from "@/lib/calendar-client";
 import { db, logsBetween } from "@/lib/db";
-import { BODY_STATES, DAY_NAMES, FEELINGS, feelingLabel, g, intensityLabel, vibeLabel } from "@/lib/labels";
+import { BODY_STATES, DAY_NAMES, durationLabel, FEELINGS, feelingLabel, g, intensityLabel, vibeLabel } from "@/lib/labels";
 import type { RecoveryLog, WorkoutLog } from "@/lib/types";
 
 type Period = "week" | "month" | "quarter" | "year";
@@ -164,7 +164,7 @@ export function ProgressScreen() {
                 {detail.exercises_done.map((e, i) => (
                   <li key={i} className="flex items-center justify-between rounded-xl bg-surface px-3 py-2 text-sm">
                     <span className="font-semibold">{e.name}</span>
-                    <span className="tabular-nums text-muted">{e.sets ? `${e.sets.filter((s) => s.done).length}/${e.sets.length} סטים` : e.duration_sec ? `${e.duration_sec} שנ׳` : ""}
+                    <span className="tabular-nums text-muted">{e.sets ? `${e.sets.filter((s) => s.done).length}/${e.sets.length} סטים` : e.duration_sec ? durationLabel(e.duration_sec) : ""}
                       {e.sets?.some((s) => s.weight_kg) && ` · ${e.sets.filter((s) => s.done && s.weight_kg).map((s) => `${s.reps ?? "?"}×${s.weight_kg}`).join(", ") || "—"} ק״ג`}</span>
                   </li>
                 ))}

@@ -2,13 +2,15 @@
 
 import { format } from "date-fns";
 import { exerciseOr } from "@/lib/exercise-or";
-import { cooldownCount, fitsLevel, FOCUS_LABEL, GENERATED_VIBES, mainCount, partsOrder, pickMain, pickPreferring, pickWarmup, progressFor, restFor, STRETCH, trainingSignals, usableWithGear, volumeFor, WARMUP, WARMUP_TERMS, weekRow, type Focus, type GearCounts } from "@/lib/generate";
+import { cooldownCount, fitsLevel, FOCUS_LABEL, GENERATED_VIBES, isTimedVibe, mainCount, partsOrder, pickMain, pickPreferring, pickWarmup, progressFor, restFor, splitMinutes, STRETCH, trainingSignals, usableWithGear, volumeFor, WARMUP, WARMUP_TERMS, warmCoolSeconds, warmupSeconds, weekRow, type Focus, type GearCounts } from "@/lib/generate";
 import { intensityFor, muscleLabel, needsWeight, vibeLabel } from "@/lib/labels";
 import { chosenWork, suggestWeight, type LoggedSet } from "@/lib/progression";
 import { createClient } from "@/lib/supabase/client";
 import type { Exercise, Phase, Profile, ScheduledWorkout, TemplateExercise, Vibe, WorkoutLog, WorkoutPlan, WorkoutTemplate } from "@/lib/types";
 
 export const db = () => createClient();
+
+const ilikeOr = (terms: string[]) => terms.map((n) => `name.ilike.%${n}%`).join(",");
 
 export type TemplateWithExercises = WorkoutTemplate & { template_exercises: (TemplateExercise & { exercise: Exercise | null })[] };
 
@@ -22,9 +24,9 @@ export async function getTemplate(id: string): Promise<TemplateWithExercises | n
   return (data as unknown as TemplateWithExercises) ?? null;
 }
 
-export async function searchExercises(opts: { q?: string; muscles?: string[]; categories?: string[]; limit?: number }): Promise<Exercise[]> {
+export async function searchExercises(opts: { q?: string; muscles?: string[]; categories?: string[]; terms?: string[]; limit?: number }): Promise<Exercise[]> {
   let query = db().from("exercises").select("*").limit(opts.limit ?? 60);
-  const or = opts.q ? exerciseOr(opts.q) : null;
+  const or = opts.q ? exerciseOr(opts.q) : opts.terms?.length ? ilikeOr(opts.terms) : null;
   if (or) query = query.or(or);
   if (opts.muscles?.length) query = query.overlaps("muscles", opts.muscles);
   if (opts.categories?.length) query = query.in("category", opts.categories);
@@ -70,10 +72,9 @@ export async function recentSignals(goals: string[]) {
   return trainingSignals((data ?? []) as Parameters<typeof trainingSignals>[0], restFor(goals));
 }
 
-/** Plan context: `goals` set the rep scheme, `level` caps difficulty (unset = any), `week` (0-3) sets the volume. `muscles` (from the single-workout chips) overrides `focus`. `core` unset = no question asked. */
-export type WorkoutOpts = { minutes: number; vibe: Vibe; equipment: string[]; focus?: Focus; muscles?: string[]; goals?: string[]; level?: number; week?: number; core?: boolean };
+/** Plan context: `goals` set the rep scheme, `level` caps difficulty (unset = any), `week` (0-3) sets the volume. `muscles` (from the single-workout chips) overrides `focus`. `core` unset = no question asked. `shape` "main" skips warm-up and cool-down. */
+export type WorkoutOpts = { minutes: number; vibe: Vibe; equipment: string[]; focus?: Focus; muscles?: string[]; goals?: string[]; level?: number; week?: number; core?: boolean; shape?: "full" | "main"; skipCardioWarmup?: boolean };
 
-const ilikeOr = (terms: string[]) => terms.map((n) => `name.ilike.%${n}%`).join(",");
 /** Name-matched candidates, so the 300-row main pool can't crowd warm-ups and stretches out. */
 async function namedPool(terms: string[], categories?: string[]): Promise<Exercise[]> {
   let query = db().from("exercises").select("*").or(ilikeOr(terms)).limit(300);
@@ -129,6 +130,7 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts, history?
   };
   if (!GENERATED_VIBES.includes(o.vibe)) return { ...base, name: vibeLabel(o.vibe), muscle_groups: [], template_exercises: [] };
 
+  const shape = o.shape ?? "full";
   const gear = [...new Set(["bodyweight", "mat", ...o.equipment])];
   const parts = o.muscles?.length ? o.muscles : [focus];
   const { single, order } = partsOrder(parts, profile.gender);
@@ -138,37 +140,40 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts, history?
   // Warm-ups (walk, bike, jumps) are fetched by name, not by the session's gear.
   const [pool, stretches, warmups, past, signals] = await Promise.all([
     searchExercises({ categories: gear, muscles: !region && specific.length ? specific : undefined, limit: 300 }),
-    namedPool(["stretch"], [...gear, "other"]),
-    namedPool(WARMUP_TERMS),
+    shape === "main" ? Promise.resolve([]) : namedPool(["stretch"], [...gear, "other"]),
+    shape === "main" ? Promise.resolve([]) : namedPool(WARMUP_TERMS),
     history ? Promise.resolve(history) : setHistory(),
     recentSignals(goals),
   ]);
-  const candidates = pool.filter((e) => !WARMUP.test(e.name) && !STRETCH.test(e.name) && (o.level === undefined || fitsLevel(e, o.level)));
   const counts: GearCounts = {
     dumbbells: o.equipment.includes("dumbbells") ? profile.dumbbell_pairs : null,
     kettlebells: o.equipment.includes("kettlebells") ? profile.kettlebell_pairs : null,
   };
   const v = volumeFor(o.week ?? 0, goals);
   const timed = o.vibe !== "strength";
+  const warmup = shape === "main" ? [] : pickWarmup(warmups, { cardio: !o.skipCardioWarmup });
+  const warmIds = new Set(warmup.map((e) => e.id));
+  const candidates = pool.filter((e) => !warmIds.has(e.id) && !WARMUP.test(e.name) && !STRETCH.test(e.name) && (o.level === undefined || fitsLevel(e, o.level)));
+  const coolN = shape === "main" ? 0 : cooldownCount(goals);
   const count = mainCount(o.minutes, {
     sets: v.sets, reps: timed ? null : v.reps, durationSec: timed ? v.durationSec : null, rest: restFor(goals), pace: signals.pace,
     bias: signals.bias - (profile.conditioning === "low" ? 1 : 0),
+    warmCoolSec: shape === "main" ? 0 : warmCoolSeconds(warmup.map((e) => e.name), coolN, o.minutes),
+    min: o.minutes < 15 ? 1 : 2,
   });
   // One muscle: several different exercises for it, not one per muscle.
   const main = single
     ? pickPreferring(candidates.filter((e) => e.images.length && usableWithGear(e, counts)), count, [])
     : pickMain(candidates, count, order, counts, o.core, o.minutes);
   const muscles = main.flatMap((e) => e.muscles);
-  const used = new Set(main.map((e) => e.id));
-  const warmup = pickWarmup(warmups.filter((e) => !used.has(e.id)));
-  const cooldown = pickPreferring(stretches.filter((e) => STRETCH.test(e.name) && !warmup.some((w) => w.id === e.id)), cooldownCount(goals), muscles);
+  const cooldown = shape === "main" ? [] : pickPreferring(stretches.filter((e) => STRETCH.test(e.name) && !warmup.some((w) => w.id === e.id)), coolN, muscles);
 
   const progress = progressFor(intensity, o.vibe, goals, signals.bias);
   const owned = profile.owned_weights ?? [];
   const rows = [
-    ...warmup.map((e) => [e, "warmup", 1, null, 45] as const),
-    ...main.map((e) => [e, "main", v.sets, timed ? null : v.reps, timed ? v.durationSec : null] as const),
-    ...cooldown.map((e) => [e, "cooldown", 1, null, 30] as const),
+    ...warmup.map((e) => [e, "warmup" as const, 1, null, warmupSeconds(e.name, o.minutes)] as const),
+    ...main.map((e) => [e, "main" as const, v.sets, timed ? null : v.reps, timed ? v.durationSec : null] as const),
+    ...cooldown.map((e) => [e, "cooldown" as const, 1, null, 30] as const),
   ].map(([e, phase, sets, reps, dur], i) => {
     const built = row(e, i, phase, sets, reps, dur);
     if (phase !== "main") return built;
@@ -182,6 +187,45 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts, history?
   return { ...base, name: `${vibeLabel(o.vibe)} · ${partsTitle(parts)}`, muscle_groups: main.map((e) => e.muscles[0]), template_exercises: rows };
 }
 
+const timedRow = (name: string, minutes: number): Row => ({
+  id: "quick-timed", template_id: "", exercise_id: null, exercise: null, custom_name: name, position: 0, notes: null, weight_kg: null, phase: "main", sets: 1, reps: null, duration_sec: minutes * 60,
+});
+
+/** Warm-up, the bigger share, the smaller share, cool-down. */
+function assemble(larger: Row[], smaller: Row[]): Row[] {
+  const all = [...larger, ...smaller];
+  return [
+    ...all.filter((r) => r.phase === "warmup"),
+    ...larger.filter((r) => r.phase === "main"),
+    ...smaller.filter((r) => r.phase === "main"),
+    ...all.filter((r) => r.phase === "cooldown"),
+  ].map((r, i) => ({ ...r, id: `quick-${i}`, position: i }));
+}
+
+/** One session that mixes two vibes. The bigger share is the saved vibe. A single vibe is a normal workout. */
+export async function generateMixedWorkout(profile: Profile, o: WorkoutOpts, vibes: Vibe[], pctFirst: number, history?: Map<string, LoggedSet[][]>): Promise<TemplateWithExercises> {
+  if (vibes.length < 2) return generateWorkout(profile, { ...o, vibe: vibes[0] ?? o.vibe }, history);
+  const [m0, m1] = splitMinutes(o.minutes, pctFirst, isTimedVibe(vibes[0]), isTimedVibe(vibes[1]));
+  const parts = [{ vibe: vibes[0], minutes: m0 }, { vibe: vibes[1], minutes: m1 }];
+  const larger = parts[0].minutes >= parts[1].minutes ? parts[0] : parts[1];
+  const smaller = larger === parts[0] ? parts[1] : parts[0];
+  const hasTimed = parts.some((p) => isTimedVibe(p.vibe));
+  const frame = GENERATED_VIBES.includes(larger.vibe) ? larger : parts.find((p) => GENERATED_VIBES.includes(p.vibe));
+  const block = async (p: { vibe: Vibe; minutes: number }) => {
+    if (!GENERATED_VIBES.includes(p.vibe)) return [timedRow(vibeLabel(p.vibe), p.minutes)];
+    const full = p === frame;
+    const w = await generateWorkout(profile, { ...o, minutes: p.minutes, vibe: p.vibe, shape: full ? "full" : "main", skipCardioWarmup: hasTimed }, history);
+    return full ? w.template_exercises : w.template_exercises.filter((r) => r.phase === "main");
+  };
+  const rows = assemble(await block(larger), await block(smaller));
+  return {
+    id: "", user_id: profile.id, vibe: larger.vibe, intensity: intensityFor(profile.conditioning), est_minutes: o.minutes, notes: null, created_at: "",
+    name: `${vibeLabel(vibes[0])} + ${vibeLabel(vibes[1])}`,
+    muscle_groups: rows.flatMap((r) => (r.exercise?.muscles[0] ? [r.exercise.muscles[0]] : [])),
+    template_exercises: rows,
+  };
+}
+
 /** Persists a generated workout so scheduled rows can point at it. Returns the template id. */
 export async function saveGeneratedTemplate(t: TemplateWithExercises): Promise<string> {
   const supabase = db();
@@ -193,7 +237,7 @@ export async function saveGeneratedTemplate(t: TemplateWithExercises): Promise<s
   if (error || !data) throw error ?? new Error("template insert failed");
   if (t.template_exercises.length) {
     const { error: exErr } = await supabase.from("template_exercises").insert(
-      t.template_exercises.map(({ exercise_id, position, sets, reps, duration_sec, weight_kg, phase }) => ({ template_id: data.id, exercise_id, position, sets, reps, duration_sec, weight_kg, phase })),
+      t.template_exercises.map(({ exercise_id, custom_name, position, sets, reps, duration_sec, weight_kg, phase }) => ({ template_id: data.id, exercise_id, custom_name, position, sets, reps, duration_sec, weight_kg, phase })),
     );
     if (exErr) throw exErr;
   }

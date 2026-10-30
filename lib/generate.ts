@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format } from "date-fns";
-import type { Difficulty, Exercise, ExerciseDone, Profile, Vibe } from "./types";
+import type { Difficulty, Exercise, ExerciseDone, Phase, Profile, Vibe } from "./types";
 
 export type Focus = "lower" | "upper" | "full";
 export const FOCUS_LABEL: Record<Focus, string> = { lower: "פלג גוף תחתון", upper: "פלג גוף עליון", full: "כל הגוף" };
@@ -19,13 +19,14 @@ const WARM_COOL_SEC = 2 * 45 + 2 * 30 + 4 * SWITCH_SEC;
 const workSec = (sets: number, reps: number | null, durationSec: number | null) =>
   sets * (reps ? reps * SEC_PER_REP : durationSec ?? 40) + SWITCH_SEC;
 
-export type MainCountOpts = { sets?: number; reps?: number | null; durationSec?: number | null; rest?: number; pace?: number; bias?: number };
+export type MainCountOpts = { sets?: number; reps?: number | null; durationSec?: number | null; rest?: number; pace?: number; bias?: number; warmCoolSec?: number; min?: number };
 
 /** Main-block size that fills the session: each exercise is its sets' work (× pace) plus rest between sets. */
 export function mainCount(minutes: number, o: MainCountOpts = {}) {
   const sets = o.sets ?? 3;
   const per = workSec(sets, o.reps === undefined ? 12 : o.reps, o.durationSec ?? null) * (o.pace ?? 1) + sets * (o.rest ?? 60);
-  return Math.min(10, Math.max(2, Math.round((minutes * 60 - WARM_COOL_SEC) / per) + (o.bias ?? 0)));
+  const budget = minutes * 60 - (o.warmCoolSec ?? WARM_COOL_SEC);
+  return Math.min(10, Math.max(o.min ?? 2, Math.round(budget / per) + (o.bias ?? 0)));
 }
 
 /**
@@ -83,6 +84,23 @@ export function warmupBucket(name: string): WarmBucket | null {
   if (WARMUP_PLYO.test(name)) return "plyo";
   if (WARMUP_MOBILITY.test(name)) return "mobility";
   return null;
+}
+
+/** Cardio needs a few minutes. Short sessions get 4, long ones 6, everything else 5. */
+export function cardioSeconds(minutes: number) {
+  if (minutes <= 20) return 240;
+  if (minutes >= 60) return 360;
+  return 300;
+}
+
+/** Plyo and mobility stay a short primer. A bike or treadmill warm-up is a real bout. */
+export const warmupSeconds = (name: string, minutes: number) =>
+  warmupBucket(name) === "cardio" ? cardioSeconds(minutes) : 45;
+
+/** Seconds reserved before the main block: the actual warm-ups, cool-downs, and the switch into each. */
+export function warmCoolSeconds(warmNames: string[], coolCount: number, minutes: number) {
+  const warm = warmNames.reduce((n, name) => n + warmupSeconds(name, minutes), 0);
+  return warm + coolCount * 30 + (warmNames.length + coolCount) * SWITCH_SEC;
 }
 export const STRETCH = /stretch/i;
 export const cooldownCount = (goals: string[]) => (goals.includes("flexibility") ? 3 : 2);
@@ -146,13 +164,14 @@ const shuffle = <T,>(xs: T[]) => [...xs].sort(() => Math.random() - 0.5);
  * Two warm-ups from different buckets when the pool allows it.
  * ponytail: fixed 50/30/20 mix, not spaced across the week. Change the cutoffs if cardio shows up too often.
  */
-export function pickWarmup(pool: Exercise[]): Exercise[] {
+export function pickWarmup(pool: Exercise[], opts?: { cardio?: boolean }): Exercise[] {
   const buckets: Record<WarmBucket, Exercise[]> = { cardio: [], plyo: [], mobility: [] };
   for (const e of pool) {
-    if (!e.images.length) continue;
+    if (!e.images.length && !e.gif) continue;
     const b = warmupBucket(e.name);
     if (b) buckets[b].push(e);
   }
+  if (opts?.cardio === false) buckets.cardio = [];
   (Object.keys(buckets) as WarmBucket[]).forEach((k) => { buckets[k] = shuffle(buckets[k]); });
   const roll = Math.random();
   const pair: WarmBucket[] = roll < 0.5 ? ["cardio", "plyo"] : roll < 0.8 ? ["cardio", "mobility"] : ["plyo", "mobility"];
@@ -196,9 +215,71 @@ export function weekRow<T extends { phase: string; exercise_id: number | null; s
   row: T, week: number, goals: string[], pinned: ReadonlySet<number>,
 ): T {
   if (row.phase !== "main") return row;
+  // A cardio bout (walk, bike) is already minutes long. Week volume is for intervals and reps.
+  if (row.duration_sec != null && row.duration_sec >= 180) return row;
   const v = volumeFor(week, goals);
   const keep = row.exercise_id != null && pinned.has(row.exercise_id);
   return { ...row, sets: v.sets, reps: row.reps == null ? null : keep ? row.reps : v.reps, duration_sec: row.duration_sec == null ? null : v.durationSec };
+}
+
+const hasDemo = (e: Pick<Exercise, "images" | "gif" | "videos">) =>
+  e.images.length > 0 || !!e.gif || (e.videos?.length ?? 0) > 0;
+
+function swapPhaseOk(e: Pick<Exercise, "name">, phase: Phase) {
+  if (phase === "cooldown") return STRETCH.test(e.name);
+  if (phase === "warmup") return !!warmupBucket(e.name);
+  return !STRETCH.test(e.name) && !WARMUP.test(e.name);
+}
+
+/**
+ * Substitutes, widest net last. The pool is already limited to owned gear plus bodyweight.
+ * 1. same muscle, same phase, with a demo
+ * 2. same muscle, bodyweight or mat
+ * 3. any other warm-up or stretch, when that's the phase
+ * 4. any bodyweight move
+ * 5. anything left in the pool
+ */
+export function swapCandidates(pool: Exercise[], current: Pick<Exercise, "id" | "muscles">, phase: Phase, exclude: number[]) {
+  const muscle = current.muscles[0];
+  const rest = pool.filter((e) => e.id !== current.id && !exclude.includes(e.id));
+  const same = (e: Exercise) => !!muscle && e.muscles[0] === muscle;
+  const body = (e: Exercise) => !e.category || e.category === "bodyweight" || e.category === "mat";
+  const ladders: ((e: Exercise) => boolean)[] = [
+    (e) => same(e) && swapPhaseOk(e, phase) && hasDemo(e),
+    (e) => same(e) && body(e) && swapPhaseOk(e, phase),
+  ];
+  if (phase === "warmup" || phase === "cooldown") ladders.push((e) => swapPhaseOk(e, phase));
+  ladders.push(body);
+  for (const ok of ladders) {
+    const hit = rest.filter(ok);
+    if (hit.length) return hit.slice(0, 20);
+  }
+  return rest.slice(0, 20);
+}
+
+/** Walk, run, cycle, and generic cardio are one timed block, not a list of lifts. */
+export const TIMED_VIBES: Vibe[] = ["cardio", "walk", "run", "cycle"];
+export const isTimedVibe = (v: string) => (TIMED_VIBES as string[]).includes(v);
+
+/**
+ * Minutes for two vibes. `pctFirst` is the first vibe's share (20–80).
+ * A timed vibe gets at least 5 minutes when the session is long enough to spare them.
+ */
+export function splitMinutes(total: number, pctFirst: number, firstTimed: boolean, secondTimed: boolean): [number, number] {
+  const pct = Math.min(80, Math.max(20, pctFirst));
+  let a = Math.round((total * pct) / 100);
+  let b = total - a;
+  if (total >= 10 && firstTimed && a < 5) {
+    a = 5;
+    b = total - 5;
+  }
+  if (total >= 10 && secondTimed && b < 5) {
+    b = 5;
+    a = total - 5;
+  }
+  if (a < 1) return [1, total - 1];
+  if (b < 1) return [total - 1, 1];
+  return [a, b];
 }
 
 /** One exercise per primary muscle, in `order` first; spare slots get a second exercise for the leading muscles. */

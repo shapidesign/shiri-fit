@@ -65,25 +65,28 @@ export const BODY_STATES: { id: BodyState; label: string; Icon: LucideIcon }[] =
 // MuscleWiki muscle ids → Hebrew. Keys are lowercase API values.
 export const MUSCLES: { id: string; label: string }[] = [
   { id: "chest", label: "חזה" },
-  { id: "shoulders", label: "כתפיים" },
-  { id: "biceps", label: "יד קדמית" },
-  { id: "triceps", label: "יד אחורית" },
+  { id: "shoulders", label: "דלתא" },
+  { id: "biceps", label: "דו-ראשי" },
+  { id: "triceps", label: "תלת-ראשי" },
   { id: "forearms", label: "אמות" },
-  { id: "abdominals", label: "בטן" },
-  { id: "obliques", label: "אלכסונים" },
-  { id: "lower back", label: "גב תחתון" },
-  { id: "lats", label: "גב רחב" },
+  { id: "abdominals", label: "ישר הבטן" },
+  { id: "obliques", label: "אלכסוני הבטן" },
+  { id: "lower back", label: "זוקפי גב" },
+  { id: "lats", label: "רחב גבי" },
   { id: "traps", label: "טרפז" },
-  { id: "glutes", label: "ישבן" },
-  { id: "quads", label: "ירך קדמית" },
-  { id: "hamstrings", label: "ירך אחורית" },
-  { id: "calves", label: "שוקיים" },
+  { id: "glutes", label: "עכוז" },
+  { id: "quads", label: "ארבע-ראשי" },
+  { id: "hamstrings", label: "מיתר הברך" },
+  { id: "calves", label: "תאומים" },
   { id: "adductors", label: "מקרבים" },
   { id: "abductors", label: "מרחיקים" },
   { id: "neck", label: "צוואר" },
   { id: "full body", label: "כל הגוף" },
 ];
 export const muscleLabel = (m: string) => MUSCLES.find((x) => x.id === m.toLowerCase())?.label ?? m;
+
+/** 45 שנ׳ stays in seconds; a whole number of minutes is shown as minutes. */
+export const durationLabel = (sec: number) => (sec >= 60 && sec % 60 === 0 ? `${sec / 60} דק׳` : `${sec} שנ׳`);
 
 export const EQUIPMENT: { id: string; label: string }[] = [
   { id: "bodyweight", label: "משקל גוף" },

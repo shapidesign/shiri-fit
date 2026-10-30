@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { bearerOk } from "@/lib/allowlist";
+import { reminderCopy } from "@/lib/nudge";
 import { pushToUser } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/server";
 import { wallClock } from "@/lib/google-calendar";
@@ -31,20 +32,22 @@ export async function POST(request: NextRequest) {
 
   const userIds = Array.from(new Set((planned ?? []).map((p) => p.user_id)));
   const { data: profiles } = userIds.length
-    ? await admin.from("profiles").select("id, reminder_minutes_before").in("id", userIds)
-    : { data: [] as { id: string; reminder_minutes_before: number }[] };
-  const lead = new Map((profiles ?? []).map((p) => [p.id, p.reminder_minutes_before]));
+    ? await admin.from("profiles").select("id, reminder_minutes_before, gender, display_name").in("id", userIds)
+    : { data: [] as { id: string; reminder_minutes_before: number; gender: "female" | "male" | null; display_name: string | null }[] };
+  const who = new Map((profiles ?? []).map((p) => [p.id, p]));
 
   for (const w of planned ?? []) {
     const [h, m] = w.time!.split(":").map(Number);
     const startMin = h * 60 + m;
-    const before = lead.get(w.user_id) ?? 60;
+    const profile = who.get(w.user_id);
+    const before = profile?.reminder_minutes_before ?? 60;
     if (before <= 0) continue;
     const diff = startMin - nowMin;
     if (diff < 0 || diff > before) continue;
+    const nudge = reminderCopy(w.id, profile?.gender ?? null, profile?.display_name ?? null);
     await pushToUser(w.user_id, {
-      title: diff <= 5 ? "זה הזמן 💪" : `עוד ${diff} דק׳ — ${w.title}`,
-      body: diff <= 5 ? w.title : "הכול מוכן? בקבוק מים, מזרן, ויאללה.",
+      title: diff <= 5 ? nudge : `עוד ${diff} דק׳ — ${w.title}`,
+      body: diff <= 5 ? w.title : nudge,
       url: `/session?scheduled=${w.id}`,
       tag: `workout-${w.id}`,
     });

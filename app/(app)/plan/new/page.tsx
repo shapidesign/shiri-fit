@@ -12,7 +12,7 @@ import { ReminderPrompt } from "@/components/reminder-prompt";
 import { useProfile } from "@/components/profile-provider";
 import { removeCalendarEvent, syncCalendar } from "@/lib/calendar-client";
 import { celebrate } from "@/lib/celebrate";
-import { db, defaultWorkoutOpts, generateWorkout, rememberedExerciseIds, saveGeneratedTemplate, setHistory, userId, withWeek } from "@/lib/db";
+import { db, defaultWorkoutOpts, generateMixedWorkout, rememberedExerciseIds, saveGeneratedTemplate, setHistory, userId, withWeek } from "@/lib/db";
 import { GENERATED_VIBES, nextLevel, planDates, planFocuses, weekIndex } from "@/lib/generate";
 import { CONDITIONING, DAY_NAMES, EXPERIENCE, GOALS, OWNED_PRESETS, VIBES, experienceLevel, g } from "@/lib/labels";
 import type { Profile, Vibe } from "@/lib/types";
@@ -34,7 +34,8 @@ export default function NewPlanPage() {
   const [time, setTime] = useState("08:00");
   const [start, setStart] = useState(format(new Date(), "yyyy-MM-dd"));
   const [minutes, setMinutes] = useState(d.minutes);
-  const [vibe, setVibe] = useState<Vibe>(d.vibe);
+  const [vibes, setVibes] = useState<Vibe[]>([d.vibe]);
+  const [pct, setPct] = useState(50);
   const [equipment, setEquipment] = useState(d.equipment);
   const [pairs, setPairs] = useState(profile.dumbbell_pairs);
   const [kbPairs, setKbPairs] = useState(profile.kettlebell_pairs);
@@ -106,15 +107,28 @@ export default function NewPlanPage() {
     {
       id: "workouts",
       title: "איזה אימונים?",
-      sub: "אפשר לשנות כל אימון אחר כך בלוח.",
+      sub: "אפשר לשלב שני סוגים. כל אימון אחר כך ניתן לשינוי בלוח.",
       body: (
         <div className="space-y-5">
           <Stepper label="אורך אימון" value={minutes} onChange={setMinutes} min={10} max={120} step={5} suffix="דק׳" />
-          <ChipRow>{VIBES.filter((v) => v.id !== "other").map((v) => <Chip key={v.id} selected={vibe === v.id} onClick={() => setVibe(v.id)}>{v.label}</Chip>)}</ChipRow>
-          {GENERATED_VIBES.includes(vibe) && <CoreQuestion value={core} onChange={setCore} />}
+          <ChipRow>{VIBES.filter((v) => v.id !== "other").map((v) => <Chip key={v.id} selected={vibes.includes(v.id)} onClick={() => setVibes((cur) => {
+            if (cur.includes(v.id)) return cur.length === 1 ? cur : cur.filter((x) => x !== v.id);
+            return cur.length >= 2 ? [cur[0], v.id] : [...cur, v.id];
+          })}>{v.label}</Chip>)}</ChipRow>
+          {vibes.length === 2 && (
+            <div className="space-y-2">
+              <p className="text-center text-sm font-bold">{pct}% {VIBES.find((v) => v.id === vibes[0])?.label} · {100 - pct}% {VIBES.find((v) => v.id === vibes[1])?.label}</p>
+              <div dir="ltr" className="flex items-center gap-3">
+                <span className="shrink-0 text-xs font-semibold">{VIBES.find((v) => v.id === vibes[0])?.label}</span>
+                <input type="range" min={20} max={80} step={10} value={100 - pct} aria-label="משקל בין שני סוגי האימון" onChange={(e) => setPct(100 - Number(e.target.value))} className="h-2 flex-1 accent-accent" />
+                <span className="shrink-0 text-xs font-semibold">{VIBES.find((v) => v.id === vibes[1])?.label}</span>
+              </div>
+            </div>
+          )}
+          {vibes.some((v) => GENERATED_VIBES.includes(v)) && <CoreQuestion value={core} onChange={setCore} />}
         </div>
       ),
-      valid: !GENERATED_VIBES.includes(vibe) || core !== null,
+      valid: vibes.length > 0 && (!vibes.some((v) => GENERATED_VIBES.includes(v)) || core !== null),
     },
     {
       id: "gear",
@@ -217,18 +231,19 @@ export default function NewPlanPage() {
       const focuses = planFocuses(weekdays.length);
       const history = await setHistory();
       const workouts = await Promise.all(focuses.map(async (focus, i) => {
-        const w = await generateWorkout(who, { minutes, vibe, equipment, focus, goals, level, ...(core !== null ? { core } : {}) }, history);
+        const w = await generateMixedWorkout(who, { minutes, vibe: vibes[0], equipment, focus, goals, level, ...(core !== null ? { core } : {}) }, vibes, pct, history);
         const pinned = rememberedExerciseIds(w.template_exercises, history);
         const name = focuses.length > 1 && w.template_exercises.length ? `${"ABC"[i]} · ${w.name}` : w.name;
         return Promise.all([0, 1, 2, 3].map(async (week) => ({
           name: w.template_exercises.length ? `${name} · שבוע ${week + 1}` : name,
           intensity: w.intensity,
+          vibe: w.vibe,
           templateId: w.template_exercises.length ? await saveGeneratedTemplate({ ...withWeek(w, week, goals, pinned), name: `${name} · שבוע ${week + 1}` }) : null,
         })));
       }));
       const { data: rows, error: rowsErr } = await supabase.from("scheduled_workouts").insert(dates.map((date, i) => {
         const w = workouts[i % workouts.length][weekIndex(startDate, date)];
-        return { user_id: uid, plan_id: plan.id, date, time, title: w.name, vibe, intensity: w.intensity, duration_min: minutes, source: "app" as const, template_id: w.templateId };
+        return { user_id: uid, plan_id: plan.id, date, time, title: w.name, vibe: w.vibe, intensity: w.intensity, duration_min: minutes, source: "app" as const, template_id: w.templateId };
       })).select("id");
       if (rowsErr) throw rowsErr;
       if (profile.calendar_sync) rows?.forEach((r) => void syncCalendar("scheduled", r.id));
