@@ -1,6 +1,6 @@
 // Run: npx tsx lib/generate.check.ts
 import assert from "node:assert/strict";
-import { fitsLevel, logPace, mainCount, nextLevel, pickExercises, pickMain, planDates, planFocuses, progressFor, trainingSignals, usableWithGear, volumeFor, weekIndex, weekRow } from "./generate";
+import { fitsLevel, logPace, mainCount, nextLevel, partsOrder, pickExercises, pickMain, pickWarmup, planDates, planFocuses, progressFor, trainingSignals, usableWithGear, volumeFor, warmupBucket, weekIndex, weekRow } from "./generate";
 import { nameKey } from "./exercise-normalize";
 import { needsWeight } from "./labels";
 import type { Exercise, ExerciseDone } from "./types";
@@ -90,6 +90,33 @@ const fresh = weekRow({ phase: "main", exercise_id: 2, reps: 12, sets: 3, durati
 assert.equal(pinned.reps, 10, "remembered reps stay");
 assert.equal(pinned.sets, 3);
 assert.equal(fresh.reps, 14, "new exercises take the week's reps");
+
+const warm = [
+  ex(1, "Inchworm", "bodyweight", "hamstrings"),
+  ex(2, "Double Leg Butt Kick", "bodyweight", "hamstrings"),
+  ex(3, "Jogging, Treadmill", "machine", "quads"),
+  ex(4, "Medicine Ball Chest Pass", "medicine ball", "chest"),
+];
+const pairs = new Set<string>();
+for (let i = 0; i < 40; i++) {
+  const picked = pickWarmup(warm);
+  assert.equal(picked.length, 2);
+  assert.notEqual(warmupBucket(picked[0].name), warmupBucket(picked[1].name));
+  assert.ok(!picked.some((e) => e.id === 4), "med-ball throws are not a warm-up");
+  pairs.add(picked.map((e) => e.id).sort().join(","));
+}
+assert.ok(pairs.size >= 2, "warm-ups are not always inchworm + butt kicks");
+const cardioOnly = pickWarmup([ex(3, "Jogging, Treadmill", "machine", "quads"), ex(5, "Walking, Treadmill", "machine", "quads")]);
+assert.equal(cardioOnly.length, 2);
+assert.ok(cardioOnly.every((e) => warmupBucket(e.name) === "cardio"));
+
+assert.equal(partsOrder(["chest"], "female").single, "chest");
+assert.deepEqual(partsOrder(["chest", "glutes"], "female").order, ["chest", "glutes"]);
+assert.equal(partsOrder(["chest", "glutes"], "female").single, undefined);
+assert.equal(partsOrder(["upper"], "female").order[0], "chest");
+assert.ok(partsOrder(["full"], "female").order.includes("glutes"));
+assert.equal(partsOrder(["upper", "glutes"], "female").order[0], "glutes");
+assert.deepEqual(partsOrder(["upper", "lower"], "female").order, partsOrder(["full"], "female").order);
 
 assert.equal(nameKey("Pushups"), nameKey("push-up (male)"));
 assert.equal(nameKey("Dumbbell Goblet Squats"), nameKey("goblet squat with dumbbell v. 2"));
