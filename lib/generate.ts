@@ -62,7 +62,28 @@ export function trainingSignals(logs: { duration_min: number; exercises_done: Ex
   return { pace: paces.length ? median(paces) : 1, bias: Math.sign(score) };
 }
 
-export const WARMUP = /jumping jack|jog|march|arm circle|high knee|butt kick|inchworm|leg swing|cat.?cow/i;
+/** Light cardio (walk / jog / bike). Names that exist in free-exercise-db. */
+export const WARMUP_CARDIO = /treadmill|trail running|bicycling|recumbent bike|elliptical/i;
+/** Simple jumps. Med-ball throws, sleds, and sprint drills stay out. */
+export const WARMUP_PLYO = /butt kick|mountain climber|star jump|knee tuck|split jump|scissors jump|fast skipping|freehand jump squat|rocket jump|standing long jump|plyo push/i;
+/** Dynamic mobility. Static stretches match STRETCH and stay in the cool-down. */
+export const WARMUP_MOBILITY = /inchworm|arm circle|ankle circle|hip circle|knee circle|shoulder circle|elbow circle|wrist circle|cat stretch|dead bug|world'?s greatest|groiners|dynamic (?:back|chest) stretch/i;
+export const WARMUP = new RegExp(`${WARMUP_CARDIO.source}|${WARMUP_PLYO.source}|${WARMUP_MOBILITY.source}`, "i");
+/** ilike fragments for the warm-up query. Kept next to the regexes so a new move is added in both. */
+export const WARMUP_TERMS = [
+  "treadmill", "trail running", "bicycling", "recumbent", "elliptical",
+  "butt kick", "mountain climber", "star jump", "knee tuck", "split jump", "scissors jump",
+  "fast skipping", "jump squat", "rocket jump", "long jump", "plyo push",
+  "inchworm", "arm circle", "ankle circle", "hip circle", "knee circle", "shoulder circle", "elbow circle", "wrist circle",
+  "cat stretch", "dead bug", "greatest", "groiners", "dynamic",
+];
+export type WarmBucket = "cardio" | "plyo" | "mobility";
+export function warmupBucket(name: string): WarmBucket | null {
+  if (WARMUP_CARDIO.test(name)) return "cardio";
+  if (WARMUP_PLYO.test(name)) return "plyo";
+  if (WARMUP_MOBILITY.test(name)) return "mobility";
+  return null;
+}
 export const STRETCH = /stretch/i;
 export const cooldownCount = (goals: string[]) => (goals.includes("flexibility") ? 3 : 2);
 
@@ -108,6 +129,48 @@ export function muscleOrder(focus: Focus, gender: Profile["gender"]) {
   return gender === "male"
     ? ["chest", "lats", "shoulders", "quads", "hamstrings", "glutes", "triceps", "biceps", "abdominals"]
     : ["glutes", "hamstrings", "quads", "abdominals", "lats", "shoulders", "chest", "triceps"];
+}
+
+/** Chips from the single-workout sheet. One muscle fills the session; several, or a region, spread out. */
+export function partsOrder(parts: string[], gender: Profile["gender"]): { single?: string; order: string[] } {
+  if (!parts.length || parts.includes("full") || (parts.includes("upper") && parts.includes("lower"))) return { order: muscleOrder("full", gender) };
+  const specific = parts.filter((p) => p !== "upper" && p !== "lower");
+  if (specific.length === 1 && parts.length === 1) return { single: specific[0], order: specific };
+  const base = parts.includes("upper") ? muscleOrder("upper", gender) : parts.includes("lower") ? muscleOrder("lower", gender) : [];
+  return { order: [...new Set([...specific, ...base])] };
+}
+
+const shuffle = <T,>(xs: T[]) => [...xs].sort(() => Math.random() - 0.5);
+
+/**
+ * Two warm-ups from different buckets when the pool allows it.
+ * ponytail: fixed 50/30/20 mix, not spaced across the week. Change the cutoffs if cardio shows up too often.
+ */
+export function pickWarmup(pool: Exercise[]): Exercise[] {
+  const buckets: Record<WarmBucket, Exercise[]> = { cardio: [], plyo: [], mobility: [] };
+  for (const e of pool) {
+    if (!e.images.length) continue;
+    const b = warmupBucket(e.name);
+    if (b) buckets[b].push(e);
+  }
+  (Object.keys(buckets) as WarmBucket[]).forEach((k) => { buckets[k] = shuffle(buckets[k]); });
+  const roll = Math.random();
+  const pair: WarmBucket[] = roll < 0.5 ? ["cardio", "plyo"] : roll < 0.8 ? ["cardio", "mobility"] : ["plyo", "mobility"];
+  const picked: Exercise[] = [];
+  const take = (list: Exercise[]) => list.find((e) => !picked.some((p) => p.id === e.id));
+  for (const b of pair) {
+    const e = take(buckets[b]);
+    if (e) picked.push(e);
+  }
+  if (picked.length < 2) {
+    const rest = shuffle([...buckets.cardio, ...buckets.plyo, ...buckets.mobility]);
+    while (picked.length < 2) {
+      const e = take(rest);
+      if (!e) break;
+      picked.push(e);
+    }
+  }
+  return picked;
 }
 
 /** Core exercises in a workout: none, one, or two from 45 minutes. */

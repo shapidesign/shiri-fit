@@ -22,7 +22,7 @@ import { chosenWork, suggestWeight, type LoggedSet, type Suggestion } from "@/li
 import { saveWorkoutLog } from "@/lib/save-log";
 import type { Exercise, ExerciseDone, ScheduledWorkout, WorkoutLog } from "@/lib/types";
 
-export type QuickParams = Partial<Pick<WorkoutOpts, "minutes" | "vibe" | "equipment" | "focus" | "muscle" | "core">>;
+export type QuickParams = Partial<Pick<WorkoutOpts, "minutes" | "vibe" | "equipment" | "muscles" | "core">>;
 type Props = { scheduledId: string | null; templateId: string | null; quick: QuickParams | null };
 type Row = TemplateWithExercises["template_exercises"][number];
 const rowName = (r: Row) => (r.exercise ? r.exercise.name_he ?? r.exercise.name : r.custom_name ?? "");
@@ -69,7 +69,7 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
       }
       const d = defaultWorkoutOpts(profile);
       const t = tid ? await getTemplate(tid) : quick
-        ? await generateWorkout(profile, { minutes: quick.minutes ?? d.minutes, vibe: quick.vibe ?? d.vibe, equipment: quick.equipment ?? d.equipment, focus: quick.focus, muscle: quick.muscle, core: quick.core })
+        ? await generateWorkout(profile, { minutes: quick.minutes ?? d.minutes, vibe: quick.vibe ?? d.vibe, equipment: quick.equipment ?? d.equipment, muscles: quick.muscles, core: quick.core })
         : null;
       if (t) {
         const [history, signals] = await Promise.all([setHistory(), recentSignals(profile.goals)]);

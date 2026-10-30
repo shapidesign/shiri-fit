@@ -10,7 +10,7 @@ export default function WorkoutsPage() {
   const [detail, setDetail] = useState<Exercise | null>(null);
   return (
     <main>
-      <PageHeader title="אימונים" eyebrow="ספריית התרגילים" />
+      <PageHeader title="תרגילים" eyebrow="ספריית התרגילים" />
       <ExerciseLibrary onSelect={setDetail} />
       <ExerciseSheet exercise={detail} onClose={() => setDetail(null)} onRename={setDetail} />
     </main>

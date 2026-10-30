@@ -11,7 +11,7 @@ import { Sheet } from "@/components/ui/sheet";
 const TABS = [
   { href: "/", label: "בית", Icon: House },
   { href: "/plan", label: "תוכנית", Icon: CalendarDays },
-  { href: "/workouts", label: "אימונים", Icon: Dumbbell },
+  { href: "/workouts", label: "תרגילים", Icon: Dumbbell },
   { href: "/progress", label: "התקדמות", Icon: TrendingUp },
 ];
 
