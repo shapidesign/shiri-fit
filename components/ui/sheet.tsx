@@ -36,7 +36,7 @@ export function Sheet({ open, onClose, title, children }: Props) {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="max-h-[70dvh] overflow-y-auto pb-2">{children}</div>
+        <div className="max-h-[70dvh] overflow-x-clip overflow-y-auto pb-2">{children}</div>
       </div>
     </dialog>
   );

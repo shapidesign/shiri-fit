@@ -4,12 +4,13 @@ type Props = InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: str
 
 export function Field({ label, hint, suffix, id, className = "", ...rest }: Props) {
   const inputId = id ?? rest.name ?? label;
+  const timeLike = rest.type === "date" || rest.type === "time" || rest.type === "datetime-local";
   return (
-    <label htmlFor={inputId} className={`block ${className}`}>
+    <label htmlFor={inputId} className={`block min-w-0 ${className}`}>
       <span className="mb-1.5 block text-sm font-semibold">{label}</span>
-      <span className="flex h-12 items-center rounded-2xl border border-border bg-surface-2 px-4 focus-within:border-ink">
-        <input id={inputId} {...rest} className="h-full w-full bg-transparent text-base outline-none placeholder:text-muted" />
-        {suffix && <span className="ms-2 text-sm text-muted">{suffix}</span>}
+      <span className="flex h-12 min-w-0 items-center overflow-hidden rounded-2xl border border-border bg-surface-2 px-4 focus-within:border-ink">
+        <input id={inputId} {...rest} dir={timeLike ? "ltr" : rest.dir} className="h-full min-w-0 w-full bg-transparent text-base outline-none placeholder:text-muted" />
+        {suffix && <span className="ms-2 shrink-0 text-sm text-muted">{suffix}</span>}
       </span>
       {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}
     </label>

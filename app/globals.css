@@ -190,6 +190,25 @@ dialog.sheet[open] {
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
+/* Date segments are laid out for the UA font. The Hebrew webfont, tabular nums, and rtl paint them on top of each other. */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: normal;
+  direction: ltr;
+  line-height: normal;
+  min-width: 0;
+}
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit,
+input[type="datetime-local"]::-webkit-datetime-edit {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  min-width: 0;
+}
+
 .scrollbar-none { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
