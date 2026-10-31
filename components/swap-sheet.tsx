@@ -92,7 +92,11 @@ function Gallery({ exercise, phase, exclude, mode, onPreview, onSwap, onWiden }:
   }
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted">{muscle && items.every((e) => e.muscles[0] === muscle) ? `תרגילים ל${muscleLabel(muscle)}. ` : ""}נגיעה בתמונה מציגה הדגמה.{items.length > 1 ? " אפשר לגלול לצדדים." : ""}</p>}
+      <p className="text-sm text-muted">
+        {muscle && items.every((e) => e.muscles[0] === muscle) ? `תרגילים ל${muscleLabel(muscle)}. ` : null}
+        נגיעה בתמונה מציגה הדגמה.
+        {items.length > 1 ? " אפשר לגלול לצדדים." : null}
+      </p>
       <div className="-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 scrollbar-none">
         {items.map((e) => (
           <article key={e.id} className="w-[78%] shrink-0 snap-center rounded-3xl bg-surface p-3">
