@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { cardioSeconds, fitsLevel, logPace, mainCount, nextLevel, partsOrder, pickExercises, pickMain, pickWarmup, planDates, planFocuses, progressFor, splitMinutes, swapCandidates, trainingSignals, usableWithGear, volumeFor, warmupBucket, warmupSeconds, weekIndex, weekRow } from "./generate";
+import { cardioSeconds, fitsEquipment, fitsLevel, gearAdvice, logPace, mainCount, nextLevel, partsOrder, pickExercises, pickMain, pickWarmup, planDates, planFocuses, progressFor, splitMinutes, swapCandidates, trainingSignals, usableWithGear, volumeFor, warmupBucket, warmupSeconds, weekIndex, weekRow } from "./generate";
 import { nameKey } from "./exercise-normalize";
-import { durationLabel, needsWeight } from "./labels";
+import { durationLabel, needsWeight, normalizeEquipment } from "./labels";
 import { reminderCopy } from "./nudge";
 import type { Exercise, ExerciseDone } from "./types";
 
@@ -131,6 +131,32 @@ assert.equal(needsWeight("mat"), false);
 assert.equal(needsWeight("dumbbells"), true);
 assert.equal(needsWeight("other"), true);
 assert.equal(needsWeight(null), true);
+
+assert.deepEqual(normalizeEquipment(["machine", "cable", "dumbbells", "dumbbells"]), ["cables", "dumbbells"]);
+assert.equal(fitsEquipment(ex(1, "Push Up", "bodyweight", "chest"), []), true);
+assert.equal(fitsEquipment(ex(1, "Pull-Up", "bodyweight", "lats"), []), false);
+assert.equal(fitsEquipment(ex(1, "Pull-Up", "bodyweight", "lats"), ["pullup"]), true);
+assert.equal(fitsEquipment(ex(1, "Dumbbell Bench Press", "dumbbells", "chest"), ["dumbbells"]), false);
+assert.equal(fitsEquipment(ex(1, "Dumbbell Bench Press", "dumbbells", "chest"), ["dumbbells", "bench"]), true);
+assert.equal(fitsEquipment(ex(1, "EZ Bar Curl", "barbell", "biceps"), ["barbell"]), false);
+assert.equal(fitsEquipment(ex(1, "EZ Bar Curl", "barbell", "biceps"), ["ez-bar"]), true);
+assert.equal(fitsEquipment(ex(1, "Lat Pulldown", "cables", "lats"), ["lat-pulldown"]), true);
+assert.equal(fitsEquipment(ex(1, "Face Pull", "cables", "shoulders"), ["lat-pulldown"]), false);
+assert.equal(fitsEquipment(ex(1, "Face Pull", "cables", "shoulders"), ["cables"]), true);
+assert.equal(fitsEquipment(ex(1, "Leg Press", "machine", "quads"), ["leg-press"]), true);
+assert.equal(fitsEquipment(ex(1, "Leg Press", "machine", "quads"), ["chest-press"]), false);
+
+const mismatch = gearAdvice("strength", "upper", ["leg-press"]);
+assert.equal(mismatch.ok, false);
+assert.ok(mismatch.suggest.some((s) => s.id === "lat-pulldown"));
+const paired = gearAdvice("strength", "lower", ["leg-extension"]);
+assert.equal(paired.ok, true);
+assert.ok(paired.suggest.some((s) => s.id === "hamstring-curl"));
+const ready = gearAdvice("strength", "upper", ["dumbbells", "lat-pulldown", "chest-press", "bench"]);
+assert.equal(ready.ok, true);
+assert.equal(ready.suggest.length, 0);
+assert.equal(gearAdvice("cycle", undefined, ["treadmill"]).ok, false);
+assert.equal(gearAdvice("pilates", undefined, ["mat"]).ok, true);
 
 // Fri 23 Oct 2026, Sun/Tue/Thu for 4 weeks → 12 dates, first one Sun 25 Oct.
 const dates = planDates(new Date("2026-10-23T00:00"), [0, 2, 4]);

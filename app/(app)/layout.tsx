@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { BottomNav } from "@/components/ui/bottom-nav";
+import { AppFrame } from "@/components/app-frame";
 import { ProfileProvider } from "@/components/profile-provider";
 import { requireProfile } from "@/lib/profile.server";
 
@@ -11,8 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <ProfileProvider profile={profile}>
-      <div className="mx-auto w-full max-w-lg flex-1 px-4 pb-28 pt-[max(1rem,env(safe-area-inset-top))]">{children}</div>
-      <BottomNav />
+      <AppFrame>{children}</AppFrame>
     </ProfileProvider>
   );
 }

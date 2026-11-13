@@ -1,4 +1,5 @@
 import { addDays, differenceInCalendarDays, format } from "date-fns";
+import { EQUIPMENT, type GearCover } from "./labels";
 import type { Difficulty, Exercise, ExerciseDone, Phase, Profile, Vibe } from "./types";
 
 export type Focus = "lower" | "upper" | "full";
@@ -210,6 +211,156 @@ export const usableWithGear = (e: Pick<Exercise, "name" | "category">, gear: Gea
   return true;
 };
 
+const hasPiece = (ids: Set<string>, id: string) => ids.has(id);
+const benchReady = (ids: Set<string>) => hasPiece(ids, "bench") || hasPiece(ids, "bench-press");
+
+/**
+ * Whether an exercise can be done with the selected gym pieces.
+ * ponytail: name regexes, not a per-exercise gear tag. A missed name just won't show up.
+ */
+export function fitsEquipment(e: Pick<Exercise, "name" | "category">, selected: string[]): boolean {
+  const ids = new Set(selected);
+  const cat = e.category ?? "other";
+  if (cat === "bodyweight") {
+    const gate = EQUIPMENT.find((g) => g.category === null && g.match?.test(e.name));
+    if (!gate) return true;
+    if (hasPiece(ids, gate.id)) return true;
+    if ((gate.id === "step" || gate.id === "bench") && benchReady(ids)) return true;
+    return false;
+  }
+  if (cat === "mat") return hasPiece(ids, "mat");
+  if (cat === "trx") return hasPiece(ids, "trx");
+  if (cat === "dumbbells") {
+    if (!hasPiece(ids, "dumbbells")) return false;
+    if (/bench/i.test(e.name) && !benchReady(ids)) return false;
+    return true;
+  }
+  if (cat === "kettlebells") return hasPiece(ids, "kettlebells");
+  if (cat === "barbell") {
+    const ez = /ez|e-z|curl bar/i.test(e.name);
+    if (ez ? !hasPiece(ids, "ez-bar") : !hasPiece(ids, "barbell")) return false;
+    if (/bench/i.test(e.name) && !benchReady(ids)) return false;
+    return true;
+  }
+  if (cat === "cables") {
+    const named = EQUIPMENT.filter((g) => g.category === "cables" && g.match?.test(e.name));
+    if (named.length) return named.some((g) => hasPiece(ids, g.id)) || hasPiece(ids, "cables");
+    return hasPiece(ids, "cables");
+  }
+  if (cat === "machine") return EQUIPMENT.some((g) => g.category === "machine" && hasPiece(ids, g.id) && !!g.match?.test(e.name));
+  return false;
+}
+
+export type GearAdvice = { ok: boolean; headline: string; detail: string; suggest: { id: string; label: string; why: string }[] };
+
+const MUSCLE_NEED: Record<string, GearCover[]> = {
+  chest: ["push"], shoulders: ["push"], triceps: ["push"],
+  biceps: ["arms"], forearms: ["arms"],
+  lats: ["pull"], traps: ["pull"],
+  glutes: ["glutes"],
+  quads: ["legs"], hamstrings: ["legs"], calves: ["legs"], adductors: ["legs"], abductors: ["legs"],
+  abdominals: ["core"], obliques: ["core"], "lower back": ["core"],
+};
+const GAP_HE: Record<GearCover, string> = {
+  push: "אין ציוד לדחיפה (חזה וכתפיים)",
+  pull: "אין ציוד למשיכה (גב)",
+  legs: "אין ציוד לרגליים",
+  glutes: "אין ציוד לישבן",
+  arms: "אין ציוד לידיים",
+  core: "אין ציוד לבטן",
+  cardio: "אין מכונת אירובי",
+  mobility: "אין מזרן",
+};
+const FIRST: Record<GearCover, string[]> = {
+  push: ["dumbbells", "chest-press", "bench-press", "cables", "smith", "shoulder-press"],
+  pull: ["lat-pulldown", "pullup", "cables", "dumbbells", "barbell"],
+  legs: ["leg-press", "dumbbells", "barbell", "smith", "leg-extension", "hamstring-curl"],
+  glutes: ["hip-thruster", "barbell", "dumbbells", "cables", "step"],
+  arms: ["dumbbells", "ez-bar", "preacher", "cables"],
+  core: ["mat", "leg-raise", "cables"],
+  cardio: ["bike", "treadmill", "elliptical"],
+  mobility: ["mat"],
+};
+/** Half a pair is present → offer the other half, same muscles or same style. */
+const PAIRS: [string, string, string][] = [
+  ["leg-extension", "hamstring-curl", "כפיפת ברך משלימה את היישור"],
+  ["hamstring-curl", "leg-extension", "יישור ברך משלים את הכפיפה"],
+  ["chest-press", "lat-pulldown", "משיכה לגב מול לחיצת החזה"],
+  ["lat-pulldown", "chest-press", "לחיצת חזה מול הגב"],
+  ["shoulder-press", "lat-pulldown", "גב ליד עבודת הכתפיים"],
+  ["preacher", "ez-bar", "מוט W ליד מכונת הידיים"],
+  ["hip-thruster", "hamstring-curl", "ירך אחורית ליד הישבן"],
+  ["bench-press", "barbell", "מוט ללחיצה על הספסל"],
+  ["bench", "dumbbells", "משקולות יד לספסל"],
+];
+
+const covers = (ids: Set<string>, need: GearCover) =>
+  EQUIPMENT.some((e) => ids.has(e.id) && (e.covers.includes(need) || (need === "legs" && e.covers.includes("glutes"))));
+
+const pieceLabel = (id: string) => EQUIPMENT.find((e) => e.id === id)?.label ?? id;
+
+function take(items: { id: string; why: string }[], have: Set<string>, n = 3): GearAdvice["suggest"] {
+  const out: GearAdvice["suggest"] = [];
+  for (const s of items) {
+    if (have.has(s.id) || out.some((x) => x.id === s.id)) continue;
+    out.push({ id: s.id, label: pieceLabel(s.id), why: s.why });
+    if (out.length === n) break;
+  }
+  return out;
+}
+
+const advice = (ok: boolean, headline: string, detail: string, suggest: GearAdvice["suggest"]): GearAdvice => ({ ok, headline, detail, suggest });
+
+/** After the gym picker: does this selection fit the workout, and what one or two pieces would complete it. */
+export function gearAdvice(vibe: string, target: string | undefined, selected: string[]): GearAdvice {
+  const ids = new Set(selected);
+  if (vibe === "cycle") {
+    return ids.has("bike")
+      ? advice(true, "נראה הגיוני", "יש אופני כושר, אפשר לסדר את האימון.", [])
+      : advice(false, "לאימון אופניים חסר ציוד", "במכון צריך אופני כושר.", take([{ id: "bike", why: "בשביל האימון הזה" }], ids));
+  }
+  if (vibe === "run") {
+    return ids.has("treadmill")
+      ? advice(true, "נראה הגיוני", "יש הליכון, אפשר לצאת לריצה.", [])
+      : advice(false, "לריצה חסר הליכון", "במכון ריצה יושבת על הליכון.", take([{ id: "treadmill", why: "בשביל הריצה" }], ids));
+  }
+  if (vibe === "walk") {
+    return advice(true, "נראה הגיוני", ids.has("treadmill") ? "יש הליכון להליכה." : "אפשר ללכת גם בלי הליכון. אם הוא פנוי, כדאי.", ids.has("treadmill") ? [] : take([{ id: "treadmill", why: "הליכה במכון" }], ids));
+  }
+  if (vibe === "cardio") {
+    return covers(ids, "cardio")
+      ? advice(true, "נראה הגיוני", "יש מכונת אירובי, אפשר לבנות סביבה.", [])
+      : advice(false, "אין מכונת אירובי", "כדאי לבחור לפחות מכונה אחת.", take(FIRST.cardio.map((id) => ({ id, why: "אירובי" })), ids));
+  }
+  if (vibe === "pilates" || vibe === "yoga" || vibe === "stretch") {
+    const name = vibe === "pilates" ? "פילאטיס" : vibe === "yoga" ? "יוגה" : "מתיחות";
+    return ids.has("mat")
+      ? advice(true, "נראה הגיוני", "המזרן מספיק. שאר המכונות לא חובה כאן.", [])
+      : advice(false, `ל${name} חסר מזרן`, "רוב התרגילים נעשים על מזרן.", take([{ id: "mat", why: name }], ids));
+  }
+  if (vibe === "hiit") {
+    const ok = ["mat", "dumbbells", "kettlebells", "trx", "step", "bike", "treadmill", "elliptical", "stairmaster"].some((id) => ids.has(id));
+    return ok
+      ? advice(true, "נראה הגיוני", "יש עם מה לעשות מרווחים קצרים.", [])
+      : advice(false, "ל-HIIT חסר ציוד זז", "מכונת בידוד אחת לא מספיקה למרווחים.", take(["mat", "dumbbells", "bike"].map((id) => ({ id, why: "HIIT" })), ids));
+  }
+
+  const needs = (target && MUSCLE_NEED[target]) || (target === "upper" ? ["push", "pull"] : target === "lower" ? ["legs"] : ["push", "pull", "legs"]);
+  const gaps = needs.filter((n) => !covers(ids, n));
+  const fromGaps = gaps.flatMap((n) => {
+    const id = FIRST[n].find((x) => !ids.has(x));
+    return id ? [{ id, why: GAP_HE[n] }] : [];
+  });
+  const relevant = EQUIPMENT.filter((e) => ids.has(e.id) && e.covers.some((c) => needs.includes(c) || (needs.includes("legs") && c === "glutes"))).length;
+  const companions = gaps.length === 0 && relevant < 4
+    ? PAIRS.filter(([a, b]) => ids.has(a) && !ids.has(b) && EQUIPMENT.some((e) => e.id === b && e.covers.some((c) => needs.includes(c) || (needs.includes("legs") && c === "glutes")))).map(([, b, why]) => ({ id: b, why }))
+    : [];
+  const suggest = take([...fromGaps, ...companions], ids);
+  if (!ids.size) return advice(true, "בלי ציוד זה משקל גוף", "אפשר כך. אם יש במכון עוד משהו מאותו סגנון, כדאי לסמן.", take(needs.flatMap((n) => { const id = FIRST[n][0]; return id ? [{ id, why: GAP_HE[n] }] : []; }), ids));
+  if (gaps.length) return advice(false, "זה פחות מתאים לאימון", `${gaps.map((n) => GAP_HE[n]).join(" · ")}.`, suggest);
+  return advice(true, "נראה הגיוני", suggest.length ? "אפשר להשלים עם ציוד מאותו אזור:" : "אפשר לסדר את האימון עם מה שיש.", suggest);
+}
+
 /** Week volume for one row. Pinned exercises keep the reps the user already does; sets still climb. */
 export function weekRow<T extends { phase: string; exercise_id: number | null; sets: number | null; reps: number | null; duration_sec: number | null }>(
   row: T, week: number, goals: string[], pinned: ReadonlySet<number>,
@@ -302,7 +453,7 @@ export function pickExercises(pool: Exercise[], count: number, order: string[], 
   return [...first, ...extra].sort((a, b) => rank(a) - rank(b));
 }
 
-/** Main block with the core question applied: `core` adds `coreCount` ab exercises, `false` keeps abs out. */
+/** Main block with the core question applied: `core` puts ab exercises first, `false` keeps abs out. */
 export function pickMain(pool: Exercise[], count: number, order: string[], gear: GearCounts, core: boolean | undefined, minutes: number) {
   if (core === undefined) return pickExercises(pool, count, order, gear);
   const isCore = (e: Exercise) => CORE_MUSCLES.includes(e.muscles[0]);
@@ -310,7 +461,7 @@ export function pickMain(pool: Exercise[], count: number, order: string[], gear:
   const nCore = Math.min(count - 1, coreCount(core, minutes));
   const abs = nCore ? pickExercises(pool.filter(isCore), nCore, CORE_MUSCLES, gear) : [];
   const others = pickExercises(pool.filter((e) => !isCore(e)), count - abs.length, rest, gear);
-  return [...others, ...abs];
+  return [...abs, ...others];
 }
 
 /** Every date (yyyy-MM-dd) from `start` for `weeks` weeks that falls on one of `weekdays` (0 = Sunday). */

@@ -22,7 +22,7 @@ import { chosenWork, suggestWeight, type LoggedSet, type Suggestion } from "@/li
 import { saveWorkoutLog } from "@/lib/save-log";
 import type { Exercise, ExerciseDone, ScheduledWorkout, WorkoutLog } from "@/lib/types";
 
-export type QuickParams = Partial<Pick<WorkoutOpts, "minutes" | "vibe" | "equipment" | "muscles" | "core">>;
+export type QuickParams = Partial<Pick<WorkoutOpts, "minutes" | "vibe" | "equipment" | "muscles" | "core" | "cardio">>;
 type Props = { scheduledId: string | null; templateId: string | null; quick: QuickParams | null };
 type Row = TemplateWithExercises["template_exercises"][number];
 const rowName = (r: Row) => (r.exercise ? r.exercise.name_he ?? r.exercise.name : r.custom_name ?? "");
@@ -69,7 +69,7 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
       }
       const d = defaultWorkoutOpts(profile);
       const t = tid ? await getTemplate(tid) : quick
-        ? await generateWorkout(profile, { minutes: quick.minutes ?? d.minutes, vibe: quick.vibe ?? d.vibe, equipment: quick.equipment ?? d.equipment, muscles: quick.muscles, core: quick.core })
+        ? await generateWorkout(profile, { minutes: quick.minutes ?? d.minutes, vibe: quick.vibe ?? d.vibe, equipment: quick.equipment ?? d.equipment, muscles: quick.muscles, core: quick.core, cardio: quick.cardio })
         : null;
       if (t) {
         const [history, signals] = await Promise.all([setHistory(), recentSignals(profile.goals)]);
@@ -190,7 +190,7 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
   if (loading) return <div className="h-80 animate-pulse rounded-[24px] bg-surface" />;
 
   return (
-    <main className="pb-24">
+    <main>
       <PageHeader title={title} eyebrow={`${vibeLabel(vibe)} · ${template ? `${rows.length} תרגילים` : "אימון חופשי"}`} onBack={() => setLeaving(true)} />
 
       <div className="flex items-center justify-between rounded-[24px] bg-surface-strong p-5 text-on-strong">
@@ -256,8 +256,10 @@ export function SessionScreen({ scheduledId, templateId, quick }: Props) {
 
       {!savedLog && <RestTimer endsAt={rest.endsAt} total={rest.total} onChange={onRest} />}
 
-      <div className="fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-lg px-4">
-        <Button size="lg" className="w-full shadow-lg" onClick={finish}>סיום אימון</Button>
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg shadow-[0_-8px_24px_-12px_rgb(0_0_0/0.55)]">
+        <div className="mx-auto max-w-lg px-4 pt-3 safe-bottom">
+          <Button size="lg" className="w-full" onClick={finish}>סיום אימון</Button>
+        </div>
       </div>
 
       <Sheet open={leaving} onClose={() => setLeaving(false)} title="לצאת מהאימון?">

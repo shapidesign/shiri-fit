@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Stepper } from "@/components/ui/field";
 import { PushToggle } from "@/components/push-toggle";
 import { db } from "@/lib/db";
-import { CONDITIONING, EQUIPMENT, EXPERIENCE, GOALS, VIBES, g } from "@/lib/labels";
+import { CONDITIONING, EXPERIENCE, GOALS, VIBES, equipmentLabel, g } from "@/lib/labels";
 
 export default function ProfilePage() {
   const { profile, setProfile } = useProfile();
@@ -59,7 +59,7 @@ export default function ProfilePage() {
           <dt className="text-muted">משקל</dt><dd className="font-semibold">{profile.weight_kg ?? "—"} ק״ג</dd>
           <dt className="text-muted">אימונים בשבוע</dt><dd className="font-semibold">{profile.days_per_week}</dd>
           {profile.weekly_minutes_goal && <><dt className="text-muted">יעד דקות</dt><dd className="font-semibold">{profile.weekly_minutes_goal} דק׳</dd></>}
-          <dt className="text-muted">ציוד</dt><dd className="font-semibold">{label(EQUIPMENT, profile.equipment)}</dd>
+          <dt className="text-muted">ציוד</dt><dd className="font-semibold">{profile.equipment.map(equipmentLabel).join(" · ") || "—"}</dd>
           {profile.equipment.includes("dumbbells") && profile.dumbbell_pairs !== null && <><dt className="text-muted">משקולות יד</dt><dd className="font-semibold">{profile.dumbbell_pairs ? "זוג מכל משקל" : "אחת מכל משקל"}</dd></>}
           {profile.equipment.includes("kettlebells") && profile.kettlebell_pairs !== null && <><dt className="text-muted">קטלבל</dt><dd className="font-semibold">{profile.kettlebell_pairs ? "זוג מכל משקל" : "אחד מכל משקל"}</dd></>}
           {profile.training_experience && <><dt className="text-muted">ניסיון</dt><dd className="font-semibold">{say(EXPERIENCE, profile.training_experience)}</dd></>}

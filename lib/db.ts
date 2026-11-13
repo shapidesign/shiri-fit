@@ -2,8 +2,8 @@
 
 import { format } from "date-fns";
 import { exerciseOr } from "@/lib/exercise-or";
-import { cooldownCount, fitsLevel, FOCUS_LABEL, GENERATED_VIBES, isTimedVibe, mainCount, partsOrder, pickMain, pickPreferring, pickWarmup, progressFor, restFor, splitMinutes, STRETCH, trainingSignals, usableWithGear, volumeFor, WARMUP, WARMUP_TERMS, warmCoolSeconds, warmupSeconds, weekRow, type Focus, type GearCounts } from "@/lib/generate";
-import { intensityFor, muscleLabel, needsWeight, vibeLabel } from "@/lib/labels";
+import { cooldownCount, fitsEquipment, fitsLevel, FOCUS_LABEL, GENERATED_VIBES, isTimedVibe, mainCount, partsOrder, pickMain, pickPreferring, pickWarmup, progressFor, restFor, splitMinutes, STRETCH, trainingSignals, usableWithGear, volumeFor, WARMUP, WARMUP_TERMS, warmCoolSeconds, warmupSeconds, weekRow, type Focus, type GearCounts } from "@/lib/generate";
+import { equipmentLabel, gearCategories, intensityFor, muscleLabel, needsWeight, normalizeEquipment, vibeLabel } from "@/lib/labels";
 import { chosenWork, suggestWeight, type LoggedSet } from "@/lib/progression";
 import { createClient } from "@/lib/supabase/client";
 import type { Exercise, Phase, Profile, ScheduledWorkout, TemplateExercise, Vibe, WorkoutLog, WorkoutPlan, WorkoutTemplate } from "@/lib/types";
@@ -72,8 +72,8 @@ export async function recentSignals(goals: string[]) {
   return trainingSignals((data ?? []) as Parameters<typeof trainingSignals>[0], restFor(goals));
 }
 
-/** Plan context: `goals` set the rep scheme, `level` caps difficulty (unset = any), `week` (0-3) sets the volume. `muscles` (from the single-workout chips) overrides `focus`. `core` unset = no question asked. `shape` "main" skips warm-up and cool-down. */
-export type WorkoutOpts = { minutes: number; vibe: Vibe; equipment: string[]; focus?: Focus; muscles?: string[]; goals?: string[]; level?: number; week?: number; core?: boolean; shape?: "full" | "main"; skipCardioWarmup?: boolean };
+/** Plan context: `goals` set the rep scheme, `level` caps difficulty (unset = any), `week` (0-3) sets the volume. `muscles` overrides `focus`. `core` / `cardio` unset = no question asked. `shape` "main" skips warm-up and cool-down. */
+export type WorkoutOpts = { minutes: number; vibe: Vibe; equipment: string[]; focus?: Focus; muscles?: string[]; goals?: string[]; level?: number; week?: number; core?: boolean; cardio?: boolean; shape?: "full" | "main"; skipCardioWarmup?: boolean };
 
 /** Name-matched candidates, so the 300-row main pool can't crowd warm-ups and stretches out. */
 async function namedPool(terms: string[], categories?: string[]): Promise<Exercise[]> {
@@ -117,7 +117,7 @@ export function rememberedExerciseIds(rows: { phase: string; exercise_id: number
 export const defaultWorkoutOpts = (profile: Profile): WorkoutOpts => ({
   minutes: 45,
   vibe: (profile.vibes.find((v) => GENERATED_VIBES.includes(v as Vibe)) ?? "strength") as Vibe,
-  equipment: profile.equipment,
+  equipment: normalizeEquipment(profile.equipment),
 });
 
 /** An unsaved template sized to the time available: warm-up, one exercise per main muscle, cool-down stretches. */
@@ -131,7 +131,8 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts, history?
   if (!GENERATED_VIBES.includes(o.vibe)) return { ...base, name: vibeLabel(o.vibe), muscle_groups: [], template_exercises: [] };
 
   const shape = o.shape ?? "full";
-  const gear = [...new Set(["bodyweight", "mat", ...o.equipment])];
+  const equipment = normalizeEquipment(o.equipment);
+  const gear = gearCategories(equipment);
   const parts = o.muscles?.length ? o.muscles : [focus];
   const { single, order } = partsOrder(parts, profile.gender);
   const region = parts.includes("full") || parts.includes("upper") || parts.includes("lower");
@@ -146,14 +147,14 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts, history?
     recentSignals(goals),
   ]);
   const counts: GearCounts = {
-    dumbbells: o.equipment.includes("dumbbells") ? profile.dumbbell_pairs : null,
-    kettlebells: o.equipment.includes("kettlebells") ? profile.kettlebell_pairs : null,
+    dumbbells: equipment.includes("dumbbells") ? profile.dumbbell_pairs : null,
+    kettlebells: equipment.includes("kettlebells") ? profile.kettlebell_pairs : null,
   };
   const v = volumeFor(o.week ?? 0, goals);
   const timed = o.vibe !== "strength";
   const warmup = shape === "main" ? [] : pickWarmup(warmups, { cardio: !o.skipCardioWarmup });
   const warmIds = new Set(warmup.map((e) => e.id));
-  const candidates = pool.filter((e) => !warmIds.has(e.id) && !WARMUP.test(e.name) && !STRETCH.test(e.name) && (o.level === undefined || fitsLevel(e, o.level)));
+  const candidates = pool.filter((e) => !warmIds.has(e.id) && !WARMUP.test(e.name) && !STRETCH.test(e.name) && fitsEquipment(e, equipment) && (o.level === undefined || fitsLevel(e, o.level)));
   const coolN = shape === "main" ? 0 : cooldownCount(goals);
   const count = mainCount(o.minutes, {
     sets: v.sets, reps: timed ? null : v.reps, durationSec: timed ? v.durationSec : null, rest: restFor(goals), pace: signals.pace,
@@ -166,7 +167,7 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts, history?
     ? pickPreferring(candidates.filter((e) => e.images.length && usableWithGear(e, counts)), count, [])
     : pickMain(candidates, count, order, counts, o.core, o.minutes);
   const muscles = main.flatMap((e) => e.muscles);
-  const cooldown = shape === "main" ? [] : pickPreferring(stretches.filter((e) => STRETCH.test(e.name) && !warmup.some((w) => w.id === e.id)), coolN, muscles);
+  const cooldown = shape === "main" ? [] : pickPreferring(stretches.filter((e) => STRETCH.test(e.name) && !warmup.some((w) => w.id === e.id) && (e.category !== "mat" || equipment.includes("mat"))), coolN, muscles);
 
   const progress = progressFor(intensity, o.vibe, goals, signals.bias);
   const owned = profile.owned_weights ?? [];
@@ -184,7 +185,15 @@ export async function generateWorkout(profile: Profile, o: WorkoutOpts, history?
     return { ...built, reps: reps != null && chosen.reps ? chosen.reps : reps, weight_kg: weighted ? tip?.kg ?? chosen.kg ?? null : null };
   });
 
-  return { ...base, name: `${vibeLabel(o.vibe)} · ${partsTitle(parts)}`, muscle_groups: main.map((e) => e.muscles[0]), template_exercises: rows };
+  const station = o.cardio && !o.skipCardioWarmup ? (["bike", "treadmill", "elliptical", "stairmaster"] as const).find((id) => equipment.includes(id)) : undefined;
+  const withCardio = station
+    ? [{
+        id: "quick-cardio", template_id: "", exercise_id: null, exercise: null, custom_name: equipmentLabel(station), position: 0,
+        notes: null, weight_kg: null, phase: "warmup" as const, sets: 1, reps: null, duration_sec: o.minutes >= 45 ? 480 : 300,
+      }, ...rows.map((r, i) => ({ ...r, position: i + 1 }))]
+    : rows;
+
+  return { ...base, name: `${vibeLabel(o.vibe)} · ${partsTitle(parts)}`, muscle_groups: main.map((e) => e.muscles[0]), template_exercises: withCardio };
 }
 
 const timedRow = (name: string, minutes: number): Row => ({

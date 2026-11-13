@@ -88,25 +88,95 @@ export const muscleLabel = (m: string) => MUSCLES.find((x) => x.id === m.toLower
 /** 45 שנ׳ stays in seconds; a whole number of minutes is shown as minutes. */
 export const durationLabel = (sec: number) => (sec >= 60 && sec % 60 === 0 ? `${sec / 60} דק׳` : `${sec} שנ׳`);
 
-export const EQUIPMENT: { id: string; label: string }[] = [
-  { id: "bodyweight", label: "משקל גוף" },
-  { id: "dumbbells", label: "משקולות יד" },
-  { id: "kettlebells", label: "קטלבל" },
-  { id: "barbell", label: "מוט" },
-  { id: "bands", label: "גומיות" },
-  { id: "machine", label: "מכשירים" },
-  { id: "cables", label: "כבלים" },
-  { id: "mat", label: "מזרן" },
-  { id: "trx", label: "TRX" },
-  { id: "pilates reformer", label: "רפורמר" },
-  { id: "exercise ball", label: "כדור פיזיו" },
-  { id: "medicine ball", label: "כדור כוח" },
+export type GearCover = "push" | "pull" | "legs" | "glutes" | "arms" | "core" | "cardio" | "mobility";
+export type Gear = {
+  id: string;
+  label: string;
+  group: "cardio" | "weights" | "stations" | "machines";
+  /** Exercise-db category this piece unlocks. Null = a station, not its own category. */
+  category: string | null;
+  /** Name gate. ponytail: regex over exercise names; tag a column if it misses. */
+  match?: RegExp;
+  covers: GearCover[];
+};
+
+/** What Shiri's gym actually has, in picker order. */
+export const EQUIPMENT: Gear[] = [
+  { id: "bike", label: "אופני כושר", group: "cardio", category: null, covers: ["cardio"] },
+  { id: "treadmill", label: "הליכון", group: "cardio", category: null, covers: ["cardio"] },
+  { id: "elliptical", label: "אליפטיקל", group: "cardio", category: null, covers: ["cardio"] },
+  { id: "stairmaster", label: "Stairmaster", group: "cardio", category: null, covers: ["cardio", "legs"] },
+  { id: "dumbbells", label: "משקולות יד", group: "weights", category: "dumbbells", covers: ["push", "pull", "legs", "glutes", "arms", "core"] },
+  { id: "kettlebells", label: "קטלבל", group: "weights", category: "kettlebells", covers: ["push", "legs", "glutes", "core"] },
+  { id: "barbell", label: "מוט", group: "weights", category: "barbell", covers: ["push", "pull", "legs", "glutes", "arms"] },
+  { id: "ez-bar", label: "מוט W", group: "weights", category: "barbell", match: /ez|e-z|curl bar/i, covers: ["arms"] },
+  { id: "bench", label: "ספסל רגיל", group: "stations", category: null, match: /bench/i, covers: [] },
+  { id: "bench-press", label: "ספסל bench press", group: "stations", category: null, covers: ["push"] },
+  { id: "pullup", label: "מתח", group: "stations", category: null, match: /pull-?ups?|chin-?ups?|pullups?/i, covers: ["pull"] },
+  { id: "mat", label: "מזרן", group: "stations", category: "mat", covers: ["mobility", "core"] },
+  { id: "step", label: "מדרגה", group: "stations", category: null, match: /step-?ups?/i, covers: ["legs", "glutes"] },
+  { id: "trx", label: "TRX", group: "stations", category: "trx", covers: ["push", "pull", "core"] },
+  { id: "hip-thruster", label: "Hip thruster", group: "machines", category: "machine", match: /hip thrust/i, covers: ["glutes"] },
+  { id: "cables", label: "Cable machine", group: "machines", category: "cables", covers: ["push", "pull", "legs", "glutes", "arms", "core"] },
+  { id: "lat-pulldown", label: "Lat pulldown", group: "machines", category: "cables", match: /pulldown|lat pull/i, covers: ["pull"] },
+  { id: "leg-press", label: "Leg press", group: "machines", category: "machine", match: /leg press/i, covers: ["legs", "glutes"] },
+  { id: "preacher", label: "מכונת preacher curls", group: "machines", category: "machine", match: /preacher/i, covers: ["arms"] },
+  { id: "leg-extension", label: "מכונת leg extension", group: "machines", category: "machine", match: /leg extension/i, covers: ["legs"] },
+  { id: "hamstring-curl", label: "מכונת hamstring curls", group: "machines", category: "machine", match: /leg curl|hamstring curl/i, covers: ["legs"] },
+  { id: "chest-press", label: "מכונת לחיצת חזה (פרפר)", group: "machines", category: "machine", match: /pec deck|butterfly|chest press|pec fly|machine fly/i, covers: ["push"] },
+  { id: "shoulder-press", label: "מכונת לחיצת כתפיים", group: "machines", category: "machine", match: /shoulder press/i, covers: ["push"] },
+  { id: "smith", label: "Smith machine", group: "machines", category: "machine", match: /smith/i, covers: ["push", "legs", "glutes"] },
+  { id: "leg-raise", label: "Leg raise tower", group: "machines", category: null, match: /hanging leg|captain/i, covers: ["core"] },
+  { id: "hip-machine", label: "מכונת מקרבי/מרחיקי ירך", group: "machines", category: "machine", match: /hip adduction|hip abduction|adductor|abductor/i, covers: ["legs"] },
 ];
+
+export const GEAR_GROUPS: { id: Gear["group"]; label: string }[] = [
+  { id: "cardio", label: "אירובי" },
+  { id: "weights", label: "משקלים חופשיים" },
+  { id: "stations", label: "ספסלים ומתח" },
+  { id: "machines", label: "מכונות" },
+];
+
+const CATEGORY_LABEL: Record<string, string> = {
+  bodyweight: "משקל גוף",
+  dumbbells: "משקולות יד",
+  kettlebells: "קטלבל",
+  barbell: "מוט",
+  bands: "גומיות",
+  machine: "מכשיר",
+  cables: "כבלים",
+  mat: "מזרן",
+  trx: "TRX",
+  "pilates reformer": "רפורמר",
+  "exercise ball": "כדור פיזיו",
+  "medicine ball": "כדור כוח",
+  other: "ציוד אחר",
+};
+
+/** Old profile values → current ids. "machine" is too coarse to guess, so it drops. */
+export function normalizeEquipment(ids: string[]): string[] {
+  const known = new Set(EQUIPMENT.map((e) => e.id));
+  const out: string[] = [];
+  for (const id of ids) {
+    const next = id === "cable" ? "cables" : id;
+    if (known.has(next) && !out.includes(next)) out.push(next);
+  }
+  return out;
+}
+
+/** DB categories to query for a selection. Bodyweight is always in, stretches add "other" at the call site. */
+export function gearCategories(ids: string[]): string[] {
+  const selected = new Set(normalizeEquipment(ids));
+  const cats = new Set<string>(["bodyweight"]);
+  for (const g of EQUIPMENT) if (selected.has(g.id) && g.category) cats.add(g.category);
+  return [...cats];
+}
+
 // "other" (unknown gear) keeps the kg field, so only categories known to be weight-free are listed.
 const NO_WEIGHT = new Set(["bodyweight", "mat", "bands", "trx", "pilates reformer", "exercise ball"]);
 /** Whether to log kg for an exercise; null = custom exercise, weight optional. */
 export const needsWeight = (category: string | null) => !category || !NO_WEIGHT.has(category);
-export const equipmentLabel = (e: string) => EQUIPMENT.find((x) => x.id === e)?.label ?? (e === "other" ? "ציוד אחר" : e);
+export const equipmentLabel = (e: string) => EQUIPMENT.find((x) => x.id === e)?.label ?? CATEGORY_LABEL[e] ?? e;
 
 export const GOALS: { id: string; label: string }[] = [
   { id: "strength", label: "להתחזק" },

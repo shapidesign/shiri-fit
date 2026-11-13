@@ -33,3 +33,19 @@ export function Chip({ selected, onClick, disabled, children, className = "" }: 
 export function ChipRow({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`flex flex-wrap gap-2 ${className}`}>{children}</div>;
 }
+
+/** One big answer. The press scales down (squash) and the fill is the selected pose. */
+export function Choice({ selected, onClick, children }: { selected?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={`flex min-h-14 w-full items-center justify-center rounded-2xl border px-4 text-center text-base font-bold transition-[transform,background-color,border-color] duration-150 active:scale-[0.97] ${
+        selected ? "border-accent bg-accent text-accent-ink shadow-[var(--shadow)]" : "border-border bg-surface-2"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}

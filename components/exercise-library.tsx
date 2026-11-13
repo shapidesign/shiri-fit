@@ -6,7 +6,8 @@ import Body, { type Slug } from "react-muscle-highlighter";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { useProfile } from "@/components/profile-provider";
-import { EQUIPMENT, MUSCLES, equipmentLabel, g, muscleLabel } from "@/lib/labels";
+import { EQUIPMENT, MUSCLES, equipmentLabel, g, gearCategories, muscleLabel, normalizeEquipment } from "@/lib/labels";
+import { fitsEquipment } from "@/lib/generate";
 import { searchExercises } from "@/lib/db";
 import type { Exercise } from "@/lib/types";
 
@@ -29,8 +30,10 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
   const [mwState, setMwState] = useState<"idle" | "loading" | "unavailable" | "done">("idle");
   const toggleMuscle = (id: string) => setMuscles((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  const categories = gear === "mine" ? [...profile.equipment, "bodyweight", "mat"] : gear === "all" ? undefined : [gear];
-  const key = JSON.stringify([q.trim(), muscles, categories]);
+  const piece = EQUIPMENT.find((e) => e.id === gear);
+  const mine = normalizeEquipment(profile.equipment);
+  const categories = gear === "all" ? undefined : gear === "mine" ? gearCategories(mine) : piece?.category ? [piece.category] : ["bodyweight", "dumbbells", "barbell", "machine"];
+  const key = JSON.stringify([q.trim(), muscles, categories, gear]);
   const loading = result.key !== key; // derived: no setState-in-effect needed
   const items = result.items;
   const setItems = (fn: (cur: Exercise[]) => Exercise[]) => setResult((r) => ({ ...r, items: fn(r.items) }));
@@ -38,8 +41,14 @@ export function ExerciseLibrary({ onSelect, selectedIds }: Props) {
   useEffect(() => {
     let alive = true;
     const t = setTimeout(async () => {
-      const res = await searchExercises({ q: q.trim() || undefined, muscles, categories });
-      if (alive) setResult({ key, items: res });
+      const res = await searchExercises({ q: q.trim() || undefined, muscles, categories, limit: gear === "all" ? 60 : 200 });
+      const items = gear === "all" ? res : res.filter((e) => {
+        if (gear === "mine") return fitsEquipment(e, mine);
+        if (piece?.match) return piece.match.test(e.name);
+        if (piece?.category) return e.category === piece.category;
+        return false;
+      });
+      if (alive) setResult({ key, items });
     }, 200);
     return () => { alive = false; clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

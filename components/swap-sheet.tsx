@@ -6,8 +6,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { ExerciseSheet } from "@/components/exercise-sheet";
 import { useProfile } from "@/components/profile-provider";
 import { searchExercises } from "@/lib/db";
-import { swapCandidates, usableWithGear, WARMUP_TERMS, type GearCounts } from "@/lib/generate";
-import { equipmentLabel, muscleLabel } from "@/lib/labels";
+import { swapCandidates, usableWithGear, WARMUP_TERMS, fitsEquipment, type GearCounts } from "@/lib/generate";
+import { equipmentLabel, gearCategories, muscleLabel, normalizeEquipment } from "@/lib/labels";
 import type { Exercise, Phase } from "@/lib/types";
 
 type Props = { exercise: Exercise | null; phase: Phase; exclude: number[]; onClose: () => void; onSwap: (e: Exercise) => void };
@@ -54,13 +54,14 @@ function Gallery({ exercise, phase, exclude, mode, onPreview, onSwap, onWiden }:
   const muscle = exercise.muscles[0];
 
   useEffect(() => {
+    const gearIds = normalizeEquipment(profile.equipment);
     const gear: GearCounts = {
-      dumbbells: profile.equipment.includes("dumbbells") ? profile.dumbbell_pairs : null,
-      kettlebells: profile.equipment.includes("kettlebells") ? profile.kettlebell_pairs : null,
+      dumbbells: gearIds.includes("dumbbells") ? profile.dumbbell_pairs : null,
+      kettlebells: gearIds.includes("kettlebells") ? profile.kettlebell_pairs : null,
     };
-    const wide = [...new Set(["bodyweight", "mat", ...profile.equipment, ...(phase === "cooldown" ? ["other"] : [])])];
+    const wide = [...new Set([...gearCategories(gearIds), ...(phase === "cooldown" ? ["other"] : [])])];
     const categories = mode === "same" ? [exercise.category ?? "bodyweight"] : [...new Set([...wide, exercise.category ?? "other"])];
-    const fit = (rows: Exercise[]) => rows.filter((e) => usableWithGear(e, gear));
+    const fit = (rows: Exercise[]) => rows.filter((e) => fitsEquipment(e, gearIds) && usableWithGear(e, gear));
     const terms = phase === "warmup" ? WARMUP_TERMS : phase === "cooldown" ? ["stretch"] : undefined;
     let cancel = false;
     (async () => {

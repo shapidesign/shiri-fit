@@ -89,7 +89,7 @@ export function OnboardingForm({ profile, mode, calendarConnected, onSaved }: Pr
     },
     {
       title: "איזה ציוד יש לך?",
-      sub: "נציע תרגילים רק עם מה שבאמת יש בבית או בסטודיו.",
+      sub: "מה שפנוי במכון. לפני כל אימון אפשר לשנות.",
       body: (
         <EquipmentPicker equipment={p.equipment} onEquipment={(e) => set("equipment", e)} pairs={p.dumbbell_pairs} onPairs={(v) => set("dumbbell_pairs", v)} kbPairs={p.kettlebell_pairs} onKbPairs={(v) => set("kettlebell_pairs", v)} />
       ),

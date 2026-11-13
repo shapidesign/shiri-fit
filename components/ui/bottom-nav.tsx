@@ -15,7 +15,7 @@ const TABS = [
   { href: "/progress", label: "התקדמות", Icon: TrendingUp },
 ];
 
-export function BottomNav() {
+export function BottomNav({ hideBar = false }: { hideBar?: boolean }) {
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -42,22 +42,24 @@ export function BottomNav() {
 
   return (
     <>
-      <nav aria-label="ניווט ראשי" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg/90 backdrop-blur safe-bottom">
-        <ul className="mx-auto grid max-w-lg grid-cols-5 gap-1 px-2 pt-2">
-          {TABS.slice(0, 2).map(tab)}
-          <li className="flex justify-center">
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              aria-label="חדש"
-              className="-mt-6 grid h-16 w-16 place-items-center rounded-full bg-accent text-accent-ink shadow-[var(--shadow)] ring-4 ring-bg transition-transform active:scale-95"
-            >
-              <Plus className="h-8 w-8" strokeWidth={2.6} aria-hidden />
-            </button>
-          </li>
-          {TABS.slice(2).map(tab)}
-        </ul>
-      </nav>
+      {!hideBar && (
+        <nav aria-label="ניווט ראשי" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg safe-bottom">
+          <ul className="mx-auto grid max-w-lg grid-cols-5 gap-1 px-2 pt-2">
+            {TABS.slice(0, 2).map(tab)}
+            <li className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
+                aria-label="חדש"
+                className="-mt-6 grid h-16 w-16 place-items-center rounded-full bg-accent text-accent-ink shadow-[var(--shadow)] ring-4 ring-bg transition-transform active:scale-95"
+              >
+                <Plus className="h-8 w-8" strokeWidth={2.6} aria-hidden />
+              </button>
+            </li>
+            {TABS.slice(2).map(tab)}
+          </ul>
+        </nav>
+      )}
 
       <Sheet open={open} onClose={() => setOpen(false)} title="מה בונים?">
         <div className="space-y-2">
