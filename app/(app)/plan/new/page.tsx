@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow, Choice } from "@/components/ui/chip";
-import { Field, Stepper } from "@/components/ui/field";
+import { DateField, Field, Stepper } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
 import { EquipmentPicker, GearCheck, equipmentValid } from "@/components/equipment-picker";
 import { ReminderPrompt } from "@/components/reminder-prompt";
@@ -187,7 +187,7 @@ export default function NewPlanPage() {
       sub: "תאריך התחלה ושעה קבועה.",
       body: (
         <div className="grid grid-cols-2 gap-3">
-          <Field label="מתחילים ב" name="start" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+          <DateField label="מתחילים ב" name="start" value={start} onChange={setStart} />
           <Field label="שעה" name="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
       ),

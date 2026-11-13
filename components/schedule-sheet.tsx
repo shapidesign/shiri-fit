@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { SwapSheet } from "@/components/swap-sheet";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
-import { Field, Stepper } from "@/components/ui/field";
+import { DateField, Field, Stepper } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { useProfile } from "@/components/profile-provider";
 import { IntensityPicker } from "@/components/log-workout-sheet";
@@ -92,7 +92,7 @@ function Form({ date, existing, onDone }: Omit<Props, "open" | "onClose" | "onCh
       {external && <ChipRow>{VIBES.map((v) => <Chip key={v.id} selected={vibe === v.id} onClick={() => setVibe(v.id)}>{v.label}</Chip>)}</ChipRow>}
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="תאריך" name="date" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+        <DateField label="תאריך" name="date" value={day} onChange={setDay} />
         <Field label="שעה" name="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
       </div>
       <Stepper label="משך" value={duration} onChange={setDuration} min={10} max={240} step={5} suffix="דק׳" />

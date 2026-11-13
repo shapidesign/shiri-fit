@@ -5,7 +5,7 @@ import { Flame } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
-import { Field, Stepper } from "@/components/ui/field";
+import { DateTimeField, Field, Stepper } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { useProfile } from "@/components/profile-provider";
 import { celebrate } from "@/lib/celebrate";
@@ -77,7 +77,7 @@ function Form({ scheduled, session, onSaved }: { scheduled?: ScheduledWorkout | 
       </div>
       <IntensityPicker value={intensity} onChange={setIntensity} label="כמה היה קשה?" />
       <Stepper label="משך" value={minutes} onChange={setMinutes} min={5} max={300} step={5} suffix="דק׳" />
-      <Field label="מתי" name="when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+      <DateTimeField label="מתי" name="when" value={when} onChange={setWhen} />
 
       <div className="flex items-center justify-between rounded-2xl bg-accent-soft px-4 py-3">
         <span className="flex items-center gap-2 font-semibold"><Flame className="h-5 w-5" aria-hidden /> שריפה משוערת</span>

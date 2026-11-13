@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Choice } from "@/components/ui/chip";
-import { Field, Stepper } from "@/components/ui/field";
+import { DateField, Field, Stepper } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { EquipmentPicker, GearCheck, equipmentValid, persistGear } from "@/components/equipment-picker";
 import { ReminderPrompt } from "@/components/reminder-prompt";
@@ -130,7 +130,7 @@ function Form({ date, onStart, onScheduled, onExternal }: { date?: string; onSta
           </div>
           {later && (
             <div key="slot" className="ask grid grid-cols-2 gap-3">
-              <Field label="תאריך" name="date" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+              <DateField label="תאריך" name="date" value={day} onChange={setDay} />
               <Field label="שעה" name="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
             </div>
           )}
