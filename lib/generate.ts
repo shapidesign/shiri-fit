@@ -288,7 +288,7 @@ const PAIRS: [string, string, string][] = [
   ["chest-press", "lat-pulldown", "משיכה לגב מול לחיצת החזה"],
   ["lat-pulldown", "chest-press", "לחיצת חזה מול הגב"],
   ["shoulder-press", "lat-pulldown", "גב ליד עבודת הכתפיים"],
-  ["preacher", "ez-bar", "מוט W ליד מכונת הידיים"],
+  ["preacher", "ez-bar", "מוט מכופף ליד מכונת הידיים"],
   ["hip-thruster", "hamstring-curl", "ירך אחורית ליד הישבן"],
   ["bench-press", "barbell", "מוט ללחיצה על הספסל"],
   ["bench", "dumbbells", "משקולות יד לספסל"],
